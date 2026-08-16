@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\VoiceCtrl.Core\VoiceCtrl.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lives at repo root (gitignored, user-edited) but must sit next to the exe at runtime,
+         AppContext.BaseDirectory is how config resolves the file, in both `dotnet run` and a
+         published build, so dev and production behave identically. -->
+    <None Include="..\..\.env" Condition="Exists('..\..\.env')" Link=".env" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\tray-icon.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="2.0.1" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Embeds the icon into the exe's own resources. This is what Explorer, Alt-Tab, the
+         taskbar, and the Start Menu shortcut all pick up, so the app looks like an app instead
+         of showing the generic .NET exe icon. Generated from Assets\tray-icon.png (the same
+         source as the tray icon) at 16/32/48/64/256px. -->
+    <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- `dotnet publish` output: one self-contained exe, no separate .NET runtime install required.
+       RuntimeIdentifier/SelfContained are deliberately NOT set here, because that would make every
+       `dotnet build`/`dotnet run` self-contained and RID-specific too, slowing the dev loop for
+       no benefit. Pass them on the publish command instead:
+         dotnet publish -c Release -r win-x64 -p:SelfContained=true
+       PublishTrimmed is off (not merely defaulted) because AppConfig's env-file parsing and the
+       sherpa-onnx interop don't survive trimming safely without extra source-gen work. -->
+  <PropertyGroup>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
+</Project>
