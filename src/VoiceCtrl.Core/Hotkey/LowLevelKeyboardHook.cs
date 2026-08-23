@@ -21,6 +21,14 @@ public sealed class LowLevelKeyboardHook : IDisposable
         remove => _tracker.DoubleTapDetected -= value;
     }
 
+    /// <summary>
+    /// Raised on every real Escape keydown, anywhere in Windows. Deliberately unfiltered here:
+    /// this class has no idea whether a dictation is running, so it reports the key and lets the
+    /// subscriber decide. The subscriber's check must therefore be cheap, since this fires for
+    /// every Esc the user ever presses. Escape is never swallowed, see <see cref="HookCallback"/>.
+    /// </summary>
+    public event Action? CancelRequested;
+
     public LowLevelKeyboardHook(int doubleTapWindowMs)
     {
         _proc = HookCallback;
@@ -66,6 +74,14 @@ public sealed class LowLevelKeyboardHook : IDisposable
 
                 if (message is NativeMethods.WM_KEYDOWN or NativeMethods.WM_SYSKEYDOWN)
                 {
+                    if (data.vkCode == NativeMethods.VK_ESCAPE)
+                    {
+                        CancelRequested?.Invoke();
+                    }
+
+                    // Still reported to the tracker afterwards, and as an untracked key: Escape
+                    // pressed while a Ctrl is held is Ctrl+Esc (the Start menu), which has to
+                    // poison that Ctrl the same as any other chord would.
                     _tracker.OnKeyDown(trackedVk, Environment.TickCount64);
                 }
                 else if (message is NativeMethods.WM_KEYUP or NativeMethods.WM_SYSKEYUP)

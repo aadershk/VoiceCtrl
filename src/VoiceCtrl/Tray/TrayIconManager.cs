@@ -1,10 +1,17 @@
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using VoiceCtrl.Core.Config;
+using VoiceCtrl.Core.Logging;
+using VoiceCtrl.Core.Transcription;
 using Hardcodet.Wpf.TaskbarNotification;
 
 namespace VoiceCtrl.Tray;
+
+/// <summary>A user-editable file the tray offers to open, e.g. the custom dictionary.</summary>
+public sealed record TrayFileEntry(string Label, string Path);
 
 /// <summary>
 /// Owns the tray icon and its context menu. Knows nothing about config paths or app
@@ -22,17 +29,27 @@ public sealed class TrayIconManager : IDisposable
 
     private readonly TaskbarIcon _icon;
     private readonly MenuItem _pauseMenuItem;
+    private readonly MenuItem _copyLastMenuItem;
     private readonly TranscriptionModeStore _modeStore;
+    private readonly LastTranscriptionStore _lastTranscription;
     private readonly Dictionary<TranscriptionModePreference, MenuItem> _modeMenuItems = [];
 
     public event Action? SettingsRequested;
     public event Action? QuitRequested;
 
+    /// <summary>Raised with the path of a user-editable file the user asked to open. Handled by
+    /// the caller so this class keeps knowing nothing about where those files live.</summary>
+    public event Action<string>? OpenFileRequested;
+
     public bool IsPaused { get; private set; }
 
-    public TrayIconManager(TranscriptionModeStore modeStore)
+    public TrayIconManager(
+        TranscriptionModeStore modeStore,
+        LastTranscriptionStore lastTranscription,
+        IReadOnlyList<TrayFileEntry> editableFiles)
     {
         _modeStore = modeStore;
+        _lastTranscription = lastTranscription;
 
         _pauseMenuItem = new MenuItem { Header = "Pause" };
         _pauseMenuItem.Click += (_, _) => TogglePause();
@@ -51,6 +68,17 @@ public sealed class TrayIconManager : IDisposable
             modeMenu.Items.Add(modeItem);
         }
 
+        var personalizeMenu = new MenuItem { Header = "Personalize" };
+        foreach (TrayFileEntry file in editableFiles)
+        {
+            var fileItem = new MenuItem { Header = file.Label };
+            fileItem.Click += (_, _) => OpenFileRequested?.Invoke(file.Path);
+            personalizeMenu.Items.Add(fileItem);
+        }
+
+        _copyLastMenuItem = new MenuItem { Header = "Copy last transcription", IsEnabled = false };
+        _copyLastMenuItem.Click += (_, _) => CopyLastTranscription();
+
         var settingsItem = new MenuItem { Header = "Settings..." };
         settingsItem.Click += (_, _) => SettingsRequested?.Invoke();
 
@@ -60,9 +88,16 @@ public sealed class TrayIconManager : IDisposable
         var menu = new ContextMenu();
         menu.Items.Add(_pauseMenuItem);
         menu.Items.Add(modeMenu);
-        menu.Items.Add(settingsItem);
         menu.Items.Add(new Separator());
+        menu.Items.Add(personalizeMenu);
+        menu.Items.Add(_copyLastMenuItem);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(settingsItem);
         menu.Items.Add(quitItem);
+
+        // Evaluated on open rather than pushed on every transcription: the menu is the only thing
+        // that reads this, and it is closed almost all of the time.
+        menu.Opened += (_, _) => _copyLastMenuItem.IsEnabled = _lastTranscription.Text is not null;
 
         _icon = new TaskbarIcon
         {
@@ -78,6 +113,29 @@ public sealed class TrayIconManager : IDisposable
             "VoiceCtrl is running",
             "Double-tap either Ctrl key anywhere to start dictating. Find me in the tray any time.",
             BalloonIcon.Info);
+    }
+
+    private void CopyLastTranscription()
+    {
+        if (_lastTranscription.Text is not { } text)
+        {
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(text);
+        }
+        catch (COMException ex)
+        {
+            // Another process is holding the clipboard. The text is still in memory, so the user
+            // can simply try the menu entry again once that process lets go.
+            SimpleFileLogger.LogError("CopyLastTranscription", ex);
+            _icon.ShowBalloonTip(
+                "Could not copy",
+                "Another program is using the clipboard. Try again in a moment.",
+                BalloonIcon.Warning);
+        }
     }
 
     private void TogglePause()

@@ -39,6 +39,31 @@ public sealed class AppConfig
     public required string LocalModelVariant { get; init; }
 
     /// <summary>
+    /// ONNX intra-op threads for the local model, from .env's LOCAL_NUM_THREADS. Defaults to half
+    /// the machine's logical cores, bounded, rather than a fixed number: the transcription is a
+    /// burst of work with nothing else competing for the CPU, and the old hardcoded 2 left most of
+    /// a modern machine idle. Half rather than all, because the app runs in the background and must
+    /// not stall whatever the user is actually working in.
+    /// </summary>
+    public required int LocalNumThreads { get; init; }
+
+    /// <summary>
+    /// Whether to MP3-compress audio before uploading it, from .env's COMPRESS_UPLOAD. Off until
+    /// the transcript comparison behind it has been run against a live API key: the saving is real
+    /// but it is not worth risking accuracy on an unverified assumption.
+    /// </summary>
+    public required bool CompressUpload { get; init; }
+
+    /// <summary>
+    /// Whether Offline mode turns spoken "comma", "period" and friends into the characters, from
+    /// .env's SPOKEN_PUNCTUATION. Off by default because those are ordinary English words and
+    /// there is no reliable way from text alone to tell "add a comma here" from "the comma is
+    /// missing". Online mode needs no such switch: it still has the audio, so it can hear the
+    /// difference. Line breaks ("new paragraph") are always on and are guarded separately.
+    /// </summary>
+    public required bool SpokenPunctuation { get; init; }
+
+    /// <summary>
     /// False when the key is blank or still the placeholder from .env.example, so the app should
     /// still start in this state (tray + hotkey usable), only refusing at the point a
     /// transcription is actually attempted, so first-run users always have a way to reach

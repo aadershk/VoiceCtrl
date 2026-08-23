@@ -4,6 +4,13 @@ public enum InjectionResult
 {
     Injected,
     ClipboardOnlyElevatedTarget,
+
+    /// <summary>
+    /// Neither the paste nor the clipboard write got through, most often because another process
+    /// held the clipboard open for longer than the retries allowed. The text is not lost: the
+    /// caller keeps it and the tray's "Copy last transcription" can put it back.
+    /// </summary>
+    Failed,
 }
 
 public interface ITextInjector

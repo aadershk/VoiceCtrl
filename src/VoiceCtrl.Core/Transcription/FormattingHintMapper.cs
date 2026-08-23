@@ -1,3 +1,5 @@
+using VoiceCtrl.Core.Personalization;
+
 namespace VoiceCtrl.Core.Transcription;
 
 internal static class FormattingHintMapper
@@ -32,6 +34,18 @@ internal static class FormattingHintMapper
         ["slack"] = ProseHint,
         ["discord"] = ProseHint,
         ["whatsapp"] = ProseHint,
+    };
+
+    /// <summary>
+    /// Maps a profiles.json "formatting" value onto the hint text. Returns null both for "none",
+    /// which means the user asked for no formatting hint at all, and for an unrecognised value,
+    /// where guessing at a typo would be worse than falling through to the built-in table.
+    /// </summary>
+    public static string? ResolveExplicit(string? formatting) => formatting?.Trim().ToLowerInvariant() switch
+    {
+        AppProfile.Structured => StructuredHint,
+        AppProfile.Prose => ProseHint,
+        _ => null,
     };
 
     // extraStructuredApps/extraProseApps let PROMPT_STYLE_APPS/CHAT_STYLE_APPS (.env) extend or

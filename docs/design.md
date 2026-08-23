@@ -21,16 +21,22 @@ The Gemini wire format is isolated behind a single interface and file, so a chan
 
 ```
 [Either Ctrl double-tap] -> LowLevelKeyboardHook -> CtrlKeyTracker (chord-guard + per-key DoubleTapDetector)
-    -> show OverlayWindow (bottom-center, non-activating, target app keeps keyboard focus throughout)
-[click mic] -> WasapiAudioRecorder starts capturing (16kHz/16-bit mono WAV, in memory)
-[click mic again] -> recording stops -> silence check ->
+    -> DictationStateMachine -> show OverlayWindow already recording (bottom-center, non-activating,
+       target app keeps keyboard focus throughout)
+    -> WasapiAudioRecorder captures at the device's native format, in memory, raising
+       AudioLevelMeter readings at ~20Hz to drive the mic circle
+[Either Ctrl double-tap again] -> recording stops -> resample to 16kHz/16-bit mono off the awaited
+    path -> silence check ->
     AdaptiveTranscriptionClient routes to Gemini (online) or the local model (offline), per the
-    Auto/Online/Offline mode set from the tray -> cleaned text returned ->
-    ClipboardPasteInjector: save clipboard -> set clipboard to text -> SendInput Ctrl+V -> restore clipboard
-    -> OverlayWindow returns to idle/auto-hides
+    Auto/Online/Offline mode set from the tray. Both paths see the user's dictionary and the
+    active app's profile; snippets are expanded once, above the routing, so the result does not
+    depend on which path served the audio -> cleaned text returned ->
+    LastTranscriptionStore holds it -> ClipboardPasteInjector: save clipboard -> set clipboard to
+    text -> SendInput Ctrl+V -> restore clipboard -> OverlayWindow auto-hides
+[Esc while recording] -> recording stops, clip discarded, nothing transcribed, nothing pasted
 ```
 
-Background shell: system tray icon (Pause/Resume, Mode [Auto/Online/Offline], Settings, Quit), autostart on Windows login. Runs non-elevated by default (least privilege; covers the overwhelming majority of real targets; elevated targets get a "text is on your clipboard, paste manually" fallback since UIPI blocks synthetic input into higher-integrity windows).
+Background shell: system tray icon (Pause/Resume, Mode [Auto/Online/Offline], Personalize [dictionary/snippets/profiles], Copy last transcription, Settings, Quit), autostart on Windows login. Runs non-elevated by default (least privilege; covers the overwhelming majority of real targets; elevated targets get a "text is on your clipboard, paste manually" fallback since UIPI blocks synthetic input into higher-integrity windows).
 
 ---
 
@@ -48,7 +54,6 @@ C:\VoiceCtrl\
 │   │   ├── app.manifest                          PerMonitorV2 DPI, asInvoker (NOT requireAdministrator)
 │   │   ├── App.xaml / App.xaml.cs                composition root; no MainWindow; ShutdownMode=OnExplicitShutdown
 │   │   ├── Overlay\OverlayWindow.xaml(.cs)        floating bar; WS_EX_NOACTIVATE/TOPMOST/TOOLWINDOW
-│   │   ├── Overlay\OverlayViewModel.cs            state machine: Hidden/Idle/Recording/Processing/Error
 │   │   ├── Overlay\MonitorPositioner.cs           bottom-center-of-active-monitor math
 │   │   ├── Tray\TrayIconManager.cs                Hardcodet.NotifyIcon.Wpf setup + context menu
 │   │   ├── Tray\AutoStartManager.cs               HKCU Run key register/unregister
@@ -57,17 +62,33 @@ C:\VoiceCtrl\
 │   │   └── Bootstrap\FirstRunSetup.cs             creates .env if missing, opens Notepad, registers autostart
 │   │
 │   └── VoiceCtrl.Core\                        (class library, net8.0-windows, UseWPF=true)
-│       ├── Hotkey\LowLevelKeyboardHook.cs         SetWindowsHookEx wrapper + P/Invoke
+│       ├── Hotkey\LowLevelKeyboardHook.cs         SetWindowsHookEx wrapper + P/Invoke, Ctrl and Esc
+│       ├── Hotkey\CtrlKeyTracker.cs               per-key chord-guard and repeat de-duplication
+│       ├── Hotkey\TrackedCtrlKeyResolver.cs       raw hook event -> tracked VK, incl. Bluetooth fallback
 │       ├── Hotkey\DoubleTapDetector.cs            pure logic, no Win32, unit testable
+│       ├── Dictation\DictationStateMachine.cs     Idle/Recording/Processing; the toggle's only truth
 │       ├── Audio\WasapiAudioRecorder.cs           NAudio WasapiCapture + resample + WaveFileWriter
+│       ├── Audio\AudioLevelMeter.cs               RMS over the device's native format, throttled to ~20Hz
+│       ├── Audio\Mp3Encoder.cs                    optional upload compression, off by default
 │       ├── Audio\AudioClip.cs                     wavBytes + IsLikelySilent()
 │       ├── Transcription\ITranscriptionClient.cs
 │       ├── Transcription\GeminiTranscriptionClient.cs   HttpClient REST, sole file that knows the wire shape
 │       ├── Transcription\GeminiModels.cs          request/response DTOs (defensive parsing)
 │       ├── Transcription\GeminiFilesApiUploader.cs      resumable upload path for long clips (rarely used)
 │       ├── Transcription\LocalTranscriptionClient.cs    offline ASR, no network call, lazy model load
+│       ├── Transcription\OfflineTextPostProcessor.cs    the offline path's entire cleanup layer, all regex
 │       ├── Transcription\FormattingHintMapper.cs        per-app bullet/prose directive, ToneHintMapper's sibling
+│       ├── Transcription\ToneHintMapper.cs              per-app register hint, suppressible from .env
+│       ├── Transcription\CleanupLevelMapper.cs          light/standard/aggressive -> prompt wording
+│       ├── Transcription\LastTranscriptionStore.cs      in-memory only; backs the tray's Copy last transcription
 │       ├── Transcription\AdaptiveTranscriptionClient.cs Auto/Online/Offline routing over the two clients above
+│       ├── Personalization\PersonalizationStore.cs      owns the three user files, hands out parsed views
+│       ├── Personalization\UserFileCache.cs             stat-based staleness check, reparse on change
+│       ├── Personalization\CustomDictionary.cs          dictionary.txt parsing and its bounds
+│       ├── Personalization\DictionaryCorrector.cs       offline-only bounded fuzzy correction
+│       ├── Personalization\SnippetTable.cs              snippets.txt parsing + single-pass expansion
+│       ├── Personalization\AppProfile.cs                one profiles.json entry
+│       ├── Personalization\AppProfileTable.cs           profiles.json parsing, per-entry fault isolation
 │       ├── Injection\ITextInjector.cs
 │       ├── Injection\ClipboardPasteInjector.cs    save/set/SendInput Ctrl+V/restore, retry logic
 │       ├── Injection\SendInputHelper.cs           P/Invoke SendInput wrapper
@@ -75,11 +96,15 @@ C:\VoiceCtrl\
 │       ├── Config\AppConfig.cs / ConfigLoader.cs  hand-rolled .env parser, no extra dependency
 │       ├── Config\TranscriptionModePreference.cs  Auto/Online/Offline enum
 │       ├── Config\TranscriptionModeStore.cs       live mode preference; persists to %LocalAppData%\VoiceCtrl\prefs.json, not .env
+│       ├── Config\UserDataPaths.cs                single source of truth for %LocalAppData%\VoiceCtrl and its files
 │       ├── Interop\NativeMethods.cs               shared Win32: window styles, monitor, foreground window, token
 │       └── Logging\SimpleFileLogger.cs
 │
-└── tests\VoiceCtrl.Core.Tests\                xunit: DoubleTapDetector, ConfigLoader, Gemini client (mocked), silence detection,
-                                                    FormattingHintMapper, AdaptiveTranscriptionClient (injected fakes), TranscriptionModeStore
+└── tests\VoiceCtrl.Core.Tests\                xunit: hotkey (DoubleTapDetector, CtrlKeyTracker, TrackedCtrlKeyResolver),
+                                                    DictationStateMachine, ConfigLoader, silence detection, AudioLevelMeter,
+                                                    FormattingHintMapper, ToneHintMapper, CleanupLevelMapper,
+                                                    OfflineTextPostProcessor, the five Personalization types,
+                                                    AdaptiveTranscriptionClient (injected fakes), TranscriptionModeStore
 ```
 
 `VoiceCtrl.Core.csproj` needs `<UseWPF>true</UseWPF>` because it uses `System.Windows.Clipboard` for the injector; isolation here means one class per responsibility, not avoiding WPF assembly refs on a Windows-only project.
@@ -122,6 +147,20 @@ const int WM_MOUSEACTIVATE = 0x0021, MA_NOACTIVATE = 3;
 ```
 (32-bit `GetWindowLong`/`SetWindowLong` is correct here since style bits fit in 32 bits even on x64. Don't "fix" this to the `LongPtr` variants, those are for pointer-sized values like `GWLP_WNDPROC`.)
 
+**Interaction.** The double-tap toggles the dictation itself, not the bar's visibility: from hidden,
+one double-tap shows the bar *and* starts recording in the same dispatch, so the bar never appears in
+an idle state waiting to be clicked. The second double-tap stops and transcribes; Esc during
+recording discards the clip without transcribing. `DictationStateMachine` (in Core, pure logic, unit
+tested) is the only place that decides what a toggle means in a given state, and its Processing state
+is what makes a second double-tap arriving mid-transcription a no-op. The mic click is kept as a
+secondary path because it costs nothing and helps discovery.
+
+**Level meter.** `AudioLevelMeter` computes RMS in `OnDataAvailable`, against the device's *native*
+format rather than the resampled stream, since the resample only happens at stop. Readings are
+throttled to ~20Hz and marshalled with `Dispatcher.BeginInvoke`, so a loud passage cannot flood the
+UI thread. This is the whole of the "is it hearing me" feedback; live transcript preview was
+considered and dropped, since it needs a second, streaming ASR model resident at all times.
+
 **Multi-monitor positioning:** mark PerMonitorV2 DPI-aware in `app.manifest`; do bottom-center math in physical pixels via `GetForegroundWindow`, then `MonitorFromWindow(MONITOR_DEFAULTTONEAREST)`, then `GetMonitorInfo` (use `rcWork` so the bar doesn't overlap the taskbar), then convert to WPF DIPs using *that monitor's* DPI (`GetDpiForMonitor`), not the primary monitor's. Wrong on a single-monitor 100%-scale dev box only shows up as a misplaced bar on mixed-DPI multi-monitor setups, so it is worth a real test if a second display is available.
 
 ### Audio capture (`Audio\WasapiAudioRecorder.cs`)
@@ -131,6 +170,11 @@ const int WM_MOUSEACTIVATE = 0x0021, MA_NOACTIVATE = 3;
 Wrap the output `MemoryStream` in `NAudio.Utils.IgnoreDisposeStream` before handing it to `WaveFileWriter`, because disposing the writer patches the RIFF header (needed) but by default also closes the underlying stream (not needed, and breaks reading it back via `ToArray()`).
 
 Subscribe to `RecordingStopped` (bridge to a `TaskCompletionSource`) rather than assuming `StopRecording()` synchronously drains the last buffers.
+
+The resample is a single pass over the whole clip at stop, at `ResamplerQuality = 60`, and it runs
+inside `Task.Run` rather than on the awaited path, so the UI thread is free while it happens. Doing
+it once at the end rather than per-buffer during capture keeps `OnDataAvailable` cheap, which matters
+because that callback also feeds the level meter.
 
 `AudioClip.IsLikelySilent()`: duration-only check (under ~300ms), short-circuiting before ever calling Gemini for an accidental double-click with no real recording. A peak-amplitude check was tried first and measured against real hardware: a 2s room-tone sample peaked at 418/32767 while a real, cleanly-transcribed speech sample peaked at only 297/32767, so no fixed amplitude threshold classifies both correctly. Amplitude was dropped as a signal entirely. Gemini's `[NO_SPEECH_DETECTED]` sentinel is the sole content-based silence detector (see below).
 
@@ -206,6 +250,10 @@ mode has no LLM in the loop (`LocalTranscriptionClient` is regex-based ASR clean
 instruction-following), so this hint never applies there. A dictation that falls back to Offline
 mid-flight (see Mode switching below) loses app-aware formatting for that one utterance.
 
+`profiles.json` overrides all three axes per app (see Personalization below). An explicit `tone` in a
+profile applies even when `ENABLE_TONE_AWARENESS=false`, because that flag governs VoiceCtrl
+*guessing* a tone, not the user writing one down.
+
 `generationConfig.thinkingConfig.thinkingLevel` (`THINKING_LEVEL`, default `low`) rides alongside
 the prompt in the same request. `gemini-3.7-flash` defaults to `medium` if the field is omitted,
 and only accepts `low`/`medium`/`high` for this model (`minimal` 400s with "not supported for this
@@ -219,6 +267,74 @@ real inconsistency in Gemini's REST surface, not a typo to "fix." Cannot combine
 `[NO_SPEECH_DETECTED]` is the sole content-based silence detector. The local check is duration-only (see above), so this is what actually catches "recorded room tone with no real speech."
 
 Files API (long clips): implement for completeness but expect it dormant in practice (a 3-minute dictation is ~5.6MB, well under the 20MB inline cap): resumable upload (`POST /upload/v1beta/files`, then the `x-goog-upload-url` header, then `POST` raw bytes with `X-Goog-Upload-Command: upload, finalize`), then reference the returned file URI instead of inline data. Branch on WAV byte size (~15MB threshold).
+
+### Offline cleanup (`Transcription\OfflineTextPostProcessor.cs`)
+
+Parakeet-TDT returns lowercase, largely unpunctuated text with every filler and repeat intact. This
+file is the entire cleanup layer for that path, and it is deliberately all regex with no model in
+the loop, so it costs microseconds and cannot hallucinate.
+
+Order matters and is load-bearing:
+
+1. Fillers and immediately repeated words are removed.
+2. Spoken punctuation is substituted, if `SPOKEN_PUNCTUATION=true`.
+3. Line-break commands are substituted.
+4. `TidyPunctuation` repairs what steps 1-3 left behind. Removing "uh" from "so, uh, roll it out"
+   leaves ", ," at that seam, and a break command consumed mid-sentence leaves a comma dangling at
+   the start or end of a line. Doing this pass *after* the deletions rather than before is what
+   makes the difference between output that reads as written and output that reads as edited.
+5. Capitalization, first character directly and then sentence starts by regex.
+
+Two defaults are chosen against the error asymmetry rather than against a hit rate:
+
+- **Line breaks are always on** because "new line" and "new paragraph" are rare as ordinary English
+  and unambiguous as commands. They are still guarded by a determiner lookbehind and an `of`
+  lookahead, so "we are entering a new line of business" survives intact.
+- **Spoken punctuation is off by default** because "comma" and "period" are ordinary words with no
+  such guard available. Online mode still has the audio when it makes that call, so it needs no
+  switch.
+
+Sentence-start capitalization excludes the full stop that ends an abbreviation, which otherwise
+turns "ship it, i.e. today" into "i.e. Today". Deliberately not implemented: self-correction
+handling ("send it to John, actually no, Sarah") and spoken-number normalization. Both need context
+a regex does not have and misfire on legitimate speech, so they stay Online-only capabilities and
+are documented as offline limits in the README.
+
+### Personalization (`Personalization\*`, three files in `%LocalAppData%\VoiceCtrl`)
+
+Plain text and JSON, edited in Notepad from the tray, no settings dialog. `UserFileCache<T>` reparses
+a file when its timestamp or length changes, checked by `FileInfo` stat rather than a
+`FileSystemWatcher`: the check runs once per transcription against three small files, and it has
+none of the watcher's failure modes (missed events on network paths, a handle held on a directory
+the user may want to move, an event arriving while the editor has flushed half the file). A file
+that cannot be read falls back to "no personalization" for that one dictation and logs, rather than
+failing the dictation.
+
+**`dictionary.txt`** is applied differently per path on purpose. Online, the terms go into the prompt
+as a spelling reference, where the model can check a candidate against the audio it still has.
+Offline, `DictionaryCorrector` runs over the finished text, which is all it has. Its thresholds are
+timid by design: a miss costs the user one re-spoken word, a false correction silently rewrites a
+word they did say. So the edit budget is zero below five characters, scales to three at thirteen,
+a ~130-word common-English blocklist blocks fuzzy matches, and a case-only fix bypasses all of it
+since rewriting the same letters carries no risk. Multi-word terms claim their span before
+single-word terms get a look, which is what makes a file containing both "Schiphol" and "Amsterdam
+Schiphol" behave the same whichever order they are written in.
+
+**`snippets.txt`** is expanded once in `AdaptiveTranscriptionClient`, above the Online/Offline
+routing, so a snippet behaves identically whichever path served the audio. That matters because in
+Auto mode the user does not control which one did. Expansion is one left-to-right pass over an
+alternation ordered longest-trigger-first, so a pair of snippets that name each other terminates
+instead of looping.
+
+**`profiles.json`** is an override layer, not a replacement. Resolution runs profile entry ->
+`PROMPT_STYLE_APPS`/`CHAT_STYLE_APPS` from `.env` -> the built-in mappers. An absent field falls
+through rather than blanking, so a user who edited one entry still picks up later improvements to
+the built-ins, and only the literal `"none"` suppresses a hint. An unrecognized `formatting` value is
+treated as a typo and falls through. Parsing goes through `Dictionary<string, JsonElement>` and
+deserializes each entry inside its own try/catch, so a malformed entry costs that entry and not the
+file. That is also what lets the seeded file carry a `_comment` array at the top, which a straight
+`Dictionary<string, AppProfile>` deserialization would have thrown on, silently discarding
+everything the user had written.
 
 ### Mode switching (`Config\TranscriptionModeStore.cs`, `Transcription\AdaptiveTranscriptionClient.cs`)
 
@@ -279,6 +395,13 @@ Gotchas:
 
 **UIPI / elevation:** pre-check *before* attempting `SendInput`, which gives no reliable synchronous failure signal. The chain is `GetForegroundWindow`, `GetWindowThreadProcessId`, `OpenProcess`, `OpenProcessToken`, `GetTokenInformation(TokenElevation)`, comparing the target process against this one. If the target is elevated and this process is not: skip the SendInput attempt, still set the clipboard, show the manual-paste message "Copied. Press Ctrl+V (elevated window)" (manual real-hardware Ctrl+V is not blocked by UIPI, only synthetic input is), and skip the clipboard auto-restore so the text is still there when the user pastes manually.
 
+**Injection never silently loses text.** `InjectAsync` returns `Injected`, `ClipboardOnlyElevatedTarget`
+or `Failed`, and the whole body is wrapped against `COMException`, so a clipboard the app genuinely
+could not open reports `Failed` rather than escaping as an unhandled exception on the UI thread. On
+`Failed` the bar says "Paste failed. Tray: Copy last transcription", and the text is in
+`LastTranscriptionStore` regardless of which of the three outcomes happened, because it is recorded
+before the injection is attempted.
+
 **Default: run non-elevated.** Least privilege for a tool that touches mic/clipboard/keystroke-injection system-wide; `HKCU\...\Run` autostart can't silently launch elevated without a UAC prompt at every login; the large majority of real targets (browsers, chat, IDEs, terminals, Office) are non-elevated anyway. The rare elevated target (admin PowerShell, Task Manager) gets the manual-paste fallback above.
 
 ### Error handling
@@ -293,7 +416,15 @@ Gotchas:
 
 ### Tray shell & config
 
-`TrayIconManager` (Hardcodet.NotifyIcon.Wpf `TaskbarIcon`: Pause/Resume, Settings which opens `.env` in Notepad, and Quit), `AutoStartManager` (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`), `FirstRunSetup` (create `.env` from `.env.example` if missing, open in Notepad, register autostart, one-time tray balloon).
+`TrayIconManager` (Hardcodet.NotifyIcon.Wpf `TaskbarIcon`: Pause/Resume, Mode, Personalize, Copy last transcription, Settings which opens `.env` in Notepad, and Quit), `AutoStartManager` (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`), `FirstRunSetup` (create `.env` from `.env.example` if missing, open in Notepad, register autostart, one-time tray balloon).
+
+The menu takes its editable files as a `TrayFileEntry` list rather than knowing the three
+personalization paths itself, and raises `OpenFileRequested`, so adding a fourth file later is a
+change to the composition root and nothing else. **Copy last transcription** reads
+`LastTranscriptionStore`, which is in-memory only and deliberately not persisted: it exists so a
+failed paste is never a lost dictation, not to build a history of everything the user has ever
+dictated. Its menu item is enabled or disabled in the menu's `Opened` handler, so it reflects the
+state at the moment the user looks at it.
 
 **Single-file-publish gotcha:** locate the exe via `AppContext.BaseDirectory`/`Environment.ProcessPath`, never `Assembly.GetExecutingAssembly().Location`, which returns empty or misleading under `PublishSingleFile=true`. Breaks `.env` lookup and autostart path registration silently, only in the published build.
 
@@ -312,10 +443,15 @@ Config loaded via a hand-rolled ~20-line parser (no `DotNetEnv`/`Microsoft.Exten
 | `PROMPT_STYLE_APPS` | *(empty)* | Additive override merged with the built-in structured-formatting app list (see formatting hint above); wrong guesses like `claude` are fixable here without a rebuild |
 | `CHAT_STYLE_APPS` | *(empty)* | Additive override merged with the built-in prose-formatting app list; same purpose as `PROMPT_STYLE_APPS` for the opposite bucket |
 | `TRANSCRIPTION_MODE` | `Online` | First-run seed only for the tray-switchable Auto/Online/Offline preference (see Mode switching below); ignored once `%LocalAppData%\VoiceCtrl\prefs.json` exists |
+| `LOCAL_MODEL_VARIANT` | `parakeet-tdt-0.6b-v2` | Subfolder of `%LocalAppData%\VoiceCtrl\models` the offline model is loaded from |
+| `LOCAL_NUM_THREADS` | `Clamp(ProcessorCount / 2, 2, 8)` | ONNX intra-op threads for the offline model. Measured on a 16-core machine: 2 threads 6,590ms on the long clip, 6 threads 3,508ms, 8 threads 3,449ms. Gains flatten past six, and every extra thread competes with whatever the user is actually working in, hence the clamp |
+| `COMPRESS_UPLOAD` | `false` | MP3-encode the clip before uploading in Online mode. Cuts the payload to ~13% of the WAV, measured. Off by default because the effect on transcription accuracy has not been measured against the live API |
+| `SPOKEN_PUNCTUATION` | `false` | Offline only: substitute spoken "comma"/"period"/"question mark". Off by default, see Offline cleanup above |
 
-All four new keys have safe code-level defaults, so an existing `.env` from before this pass keeps
+Every key has a safe code-level default, so an existing `.env` from before any given pass keeps
 working untouched; only someone who wants to change a default needs to add a line by hand.
-Like every other setting, changes only take effect after a restart (no hot-reload).
+Like every other `.env` setting, changes only take effect after a restart (no hot-reload). The three
+personalization files are the exception, and are re-read on the next dictation after a save.
 
 ---
 
@@ -371,10 +507,42 @@ Formatting & mode-switching checks (the connectivity-fallback branch itself is c
 3. Switch to Offline through the tray Mode submenu, then dictate with a valid API key configured, and confirm the local model answers and no network call is made.
 4. Tray Mode submenu reflects the active preference correctly (single checkmark, moves when you click a different entry) and persists across an app restart (`%LocalAppData%\VoiceCtrl\prefs.json`).
 
+Interaction and personalization checks (the hook filters `LLKHF_INJECTED`, so synthetic keystrokes
+cannot drive the hotkey and none of the first four can be automated):
+1. Double-tap Ctrl in Notepad, speak, double-tap again. Text lands with no mouse involved.
+2. Double-tap, speak, press Esc. Nothing is injected, and Esc still reaches Notepad.
+3. Confirm the mic circle visibly tracks voice level while recording.
+4. Double-tap again while a transcription is in flight: no second recording starts.
+5. Add a term to `dictionary.txt`, save, dictate it without restarting, and confirm it comes back
+   spelled as written. Repeat in Offline mode, which exercises `DictionaryCorrector` instead of the
+   prompt path.
+6. Add a snippet, confirm it expands, and confirm it expands identically in both modes.
+7. Add a `profiles.json` entry for the app you are dictating into, confirm it takes effect, then
+   remove one field from it and confirm that field falls back to the built-in behaviour rather than
+   going blank.
+8. Corrupt `profiles.json` deliberately (delete a brace), dictate, and confirm the dictation still
+   succeeds with built-in behaviour and `log.txt` records the parse failure.
+
 Run via `dotnet run --project src\VoiceCtrl` during development; final check against the published self-contained exe (`publish\VoiceCtrl.exe`) before considering this pass done, since single-file publish has its own gotchas (see config section) that `dotnet run` won't surface.
 
 ---
 
-## Explicitly Out of Scope (MVP)
+## Explicitly Out of Scope
 
-Live-streaming/partial transcripts while speaking, caret-following bar placement (fixed bottom-center instead, since caret-position APIs are unreliable across arbitrary apps), full settings GUI (raw `.env` edit via Notepad instead), custom TSF IME, auto-stop-on-silence detection, installer/MSI packaging, multi-hotkey customization UI. Noted as possible future enhancements, not planned here.
+Live-streaming/partial transcripts while speaking (needs a second, streaming ASR model resident at
+all times; the level meter covers the "is it hearing me" question that motivated it), caret-following
+bar placement (fixed bottom-center instead, since caret-position APIs are unreliable across arbitrary
+apps), full settings GUI (raw `.env` and plain-text personalization files edited in Notepad instead),
+custom TSF IME, auto-stop-on-silence detection, installer/MSI packaging, multi-hotkey customization
+UI.
+
+Considered and rejected on evidence rather than effort: offline self-correction handling and
+offline spoken-number normalization, both of which need context a regex does not have; and
+sherpa-onnx hotwords for the offline dictionary, which require `modified_beam_search` in place of
+`greedy_search` and would cost latency on every dictation to serve a file most users leave empty.
+The bounded post-ASR correction pass does the same job for the same cases at no cost when the file
+is empty.
+
+MP3 upload compression is implemented and measured (~13% of the WAV payload) but ships off, behind
+`COMPRESS_UPLOAD`, because the free-tier quota ran out before a WAV-vs-MP3 transcript comparison
+could be completed. Turning it on is a one-line change once that comparison is run.

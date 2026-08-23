@@ -103,6 +103,22 @@ public static class FirstRunSetup
         # PROMPT_STYLE_APPS=claude,cursor
         # CHAT_STYLE_APPS=whatsapp,telegram
         # CLEANUP_LEVEL=standard
+
+        # Offline model threads. Defaults to half this machine's logical cores, clamped to 2-8.
+        # LOCAL_NUM_THREADS=8
+
+        # MP3-compress audio before uploading in Online mode. Roughly a tenth of the payload,
+        # so a faster upload, but the effect on accuracy has not been measured against the live
+        # API yet. Leave off unless you have compared transcripts yourself.
+        # COMPRESS_UPLOAD=false
+
+        # Offline mode only: turn spoken "comma", "period", "question mark" into the characters.
+        # Off by default because those are ordinary words, so "the comma is missing" would become
+        # "the , is missing". Online mode still has the audio and needs no such switch.
+        # SPOKEN_PUNCTUATION=false
+
+        # Dictionary, snippets and per-app profiles live next to this file, in
+        # %LOCALAPPDATA%\VoiceCtrl. Open them from the tray icon under Personalize.
         """;
 
     public static void OpenInNotepad(string path)

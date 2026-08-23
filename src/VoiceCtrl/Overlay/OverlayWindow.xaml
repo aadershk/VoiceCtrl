@@ -19,8 +19,20 @@
             <Grid x:Name="MicArea"
                   Width="48" Height="48"
                   Cursor="Hand"
-                  ToolTip="Click to start or stop dictation"
+                  ToolTip="Double-tap Ctrl to stop, or Esc to cancel"
                   MouseLeftButtonUp="MicArea_MouseLeftButtonUp">
+                <!-- Sits behind the mic dot and grows with microphone level. At scale 1 it is
+                     exactly covered by the dot, so silence shows nothing at all. Max scale is
+                     bounded so the halo stays inside the window and never clips on the border. -->
+                <Ellipse x:Name="LevelEllipse"
+                         Fill="#40E0402A"
+                         IsHitTestVisible="False"
+                         Visibility="Hidden"
+                         RenderTransformOrigin="0.5,0.5">
+                    <Ellipse.RenderTransform>
+                        <ScaleTransform x:Name="LevelScale" ScaleX="1" ScaleY="1"/>
+                    </Ellipse.RenderTransform>
+                </Ellipse>
                 <Ellipse x:Name="MicEllipse" Fill="#FF505050"/>
                 <TextBlock Text="&#127908;" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
             </Grid>

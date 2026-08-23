@@ -5,6 +5,7 @@ using NAudio.Wave;
 using SherpaOnnx;
 using VoiceCtrl.Core.Config;
 using VoiceCtrl.Core.Logging;
+using VoiceCtrl.Core.Personalization;
 using Timer = System.Timers.Timer;
 
 namespace VoiceCtrl.Core.Transcription;
@@ -26,6 +27,10 @@ public sealed class LocalTranscriptionClient : ITranscriptionClient
     private static readonly TimeSpan IdleUnloadDelay = TimeSpan.FromMinutes(5);
 
     private readonly string _modelDirectory;
+    private readonly int _numThreads;
+    private readonly Func<bool>? _shouldStayResident;
+    private readonly PersonalizationStore _personalization;
+    private readonly bool _spokenPunctuation;
     private readonly SemaphoreSlim _recognizerLock = new(1, 1);
     private readonly Timer _idleUnloadTimer;
     private readonly HttpClient _httpClient = new();
@@ -33,12 +38,24 @@ public sealed class LocalTranscriptionClient : ITranscriptionClient
     private OfflineRecognizer? _recognizer;
     private bool _disposed;
 
-    public LocalTranscriptionClient(AppConfig config)
+    /// <param name="shouldStayResident">
+    /// Consulted when the idle timer fires, to decide whether to keep the model in memory.
+    /// Loading it costs several seconds, which someone who has deliberately chosen Offline mode
+    /// would otherwise pay every time they stop dictating for five minutes. In Auto that trade is
+    /// the wrong way round, since the model may never be reached at all while the network is up,
+    /// and holding ~700MB for a path nothing uses is worse than a reload nobody waits for.
+    /// Null keeps the unconditional unload.
+    /// </param>
+    public LocalTranscriptionClient(
+        AppConfig config,
+        Func<bool>? shouldStayResident = null,
+        PersonalizationStore? personalization = null)
     {
-        string modelsRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "VoiceCtrl", "models");
-        _modelDirectory = Path.Combine(modelsRoot, config.LocalModelVariant);
+        _modelDirectory = Path.Combine(UserDataPaths.Models, config.LocalModelVariant);
+        _numThreads = config.LocalNumThreads;
+        _shouldStayResident = shouldStayResident;
+        _personalization = personalization ?? PersonalizationStore.Empty;
+        _spokenPunctuation = config.SpokenPunctuation;
 
         _idleUnloadTimer = new Timer(IdleUnloadDelay.TotalMilliseconds) { AutoReset = false };
         _idleUnloadTimer.Elapsed += OnIdleTimerElapsed;
@@ -71,7 +88,12 @@ public sealed class LocalTranscriptionClient : ITranscriptionClient
             return null;
         }
 
-        return OfflineTextPostProcessor.Clean(rawText);
+        string cleaned = OfflineTextPostProcessor.Clean(rawText, _spokenPunctuation);
+
+        // Applied here rather than alongside the snippet expansion, because it only makes sense
+        // for this path. Online gets the same dictionary as a prompt hint, where the model can
+        // check a candidate against the audio instead of guessing from the text alone.
+        return DictionaryCorrector.Apply(cleaned, _personalization.DictionaryTerms);
     }
 
     /// <summary>
@@ -118,7 +140,7 @@ public sealed class LocalTranscriptionClient : ITranscriptionClient
         config.ModelConfig.Tokens = Path.Combine(_modelDirectory, "tokens.txt");
         config.ModelConfig.ModelType = "nemo_transducer";
         config.ModelConfig.Provider = "cpu";
-        config.ModelConfig.NumThreads = 2;
+        config.ModelConfig.NumThreads = _numThreads;
         config.DecodingMethod = "greedy_search";
 
         SimpleFileLogger.LogInfo("Loading offline transcription model...");
@@ -172,18 +194,26 @@ public sealed class LocalTranscriptionClient : ITranscriptionClient
         using var waveReader = new WaveFileReader(memoryStream);
         ISampleProvider sampleProvider = waveReader.ToSampleProvider();
 
-        var samples = new List<float>();
-        float[] buffer = new float[4096];
+        // Sized up front from the data length, which is exact for PCM, instead of growing a
+        // List<float>: a 40-second clip is 640k samples, so the old path paid about twenty
+        // reallocations and a full copy on ToArray() before the decoder saw anything.
+        // Derived from Length rather than SampleCount because SampleCount throws on formats it
+        // cannot count, and this must never be the thing that fails a transcription.
+        int bytesPerSample = waveReader.WaveFormat.BitsPerSample / 8;
+        int expectedSamples = bytesPerSample > 0 ? (int)(waveReader.Length / bytesPerSample) : 0;
+
+        float[] samples = new float[expectedSamples];
+        int total = 0;
         int read;
-        while ((read = sampleProvider.Read(buffer, 0, buffer.Length)) > 0)
+        while (total < samples.Length &&
+               (read = sampleProvider.Read(samples, total, samples.Length - total)) > 0)
         {
-            for (int i = 0; i < read; i++)
-            {
-                samples.Add(buffer[i]);
-            }
+            total += read;
         }
 
-        return samples.ToArray();
+        // Exact in practice. A short read means a truncated or malformed WAV, and trimming beats
+        // handing the decoder a tail of silence it would spend time transcribing.
+        return total == samples.Length ? samples : samples[..total];
     }
 
     private void ResetIdleTimer()
@@ -194,6 +224,14 @@ public sealed class LocalTranscriptionClient : ITranscriptionClient
 
     private async void OnIdleTimerElapsed(object? sender, ElapsedEventArgs e)
     {
+        if (_shouldStayResident?.Invoke() == true)
+        {
+            // Re-armed rather than left off, so that switching away from Offline later still
+            // reaches an unload without needing another transcription to restart the timer.
+            ResetIdleTimer();
+            return;
+        }
+
         await _recognizerLock.WaitAsync().ConfigureAwait(false);
         try
         {

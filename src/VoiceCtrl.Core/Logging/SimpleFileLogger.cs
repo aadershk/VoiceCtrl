@@ -1,4 +1,5 @@
 using System.IO;
+using VoiceCtrl.Core.Config;
 
 namespace VoiceCtrl.Core.Logging;
 
@@ -16,10 +17,7 @@ public static class SimpleFileLogger
     // see VoiceCtrl.Core.Tests' module initializer. Without that seam, running the test suite
     // would interleave fake diagnostic entries into the same log.txt a real running instance
     // writes to, corrupting the exact evidence this file exists to provide.
-    internal static string LogFilePath { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "VoiceCtrl",
-        "log.txt");
+    internal static string LogFilePath { get; set; } = UserDataPaths.Log;
 
     public static void LogError(string context, Exception ex) =>
         Write($"ERROR [{context}] {ex.GetType().Name}: {ex.Message}");

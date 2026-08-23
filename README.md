@@ -1,6 +1,6 @@
 # VoiceCtrl
 
-A Windows voice dictation utility. Double-tap Ctrl anywhere to open a floating mic bar, speak, tap the mic to stop, and the cleaned-up transcription is pasted at your cursor in whatever application has focus.
+A Windows voice dictation utility. Double-tap Ctrl anywhere, speak, double-tap again, and the cleaned-up transcription is pasted at your cursor in whatever application has focus. Press Esc to throw the recording away. The mouse never enters the loop.
 
 Three transcription modes:
 
@@ -22,11 +22,31 @@ VoiceCtrl then runs from the system tray. Double-tap Ctrl anywhere to start dict
 
 To change the API key later, edit `.env`. The tray icon's Settings entry opens it in Notepad.
 
+## Dictating
+
+- **Start and stop.** Double-tap either Ctrl key. The bar opens already recording, and the mic circle tracks your voice level, so you can see that it is hearing you before you commit to a long sentence. Double-tap again to stop; the text is cleaned up and pasted where your cursor is.
+- **Cancel.** Press Esc while recording. The clip is discarded, nothing is transcribed and nothing is pasted. Esc still reaches whatever app you were in.
+- **Mouse.** Clicking the mic still starts and stops a recording, if you would rather.
+- **Nothing is ever lost.** The last transcription stays available from the tray under **Copy last transcription**, and if a paste fails or the target window is elevated, the text is left on your clipboard and the bar tells you to press Ctrl+V yourself.
+
+## Personalizing the output
+
+Three files live in `%LOCALAPPDATA%\VoiceCtrl` and open from the tray icon under **Personalize**. Each is created with commented examples on first run, and each is re-read on the next dictation after you save it, so there is no restart and no settings dialog.
+
+- **`dictionary.txt`.** Names, jargon and product spellings, one per line. Online mode passes them to the model as a spelling reference, so it can check a candidate against what it actually heard. Offline mode corrects the finished text against them, with a small edit budget that scales with the length of the term and a blocklist of common English words, so a near-miss is fixed and an ordinary word is never rewritten.
+- **`snippets.txt`.** Spoken shorthand, written as `trigger = expansion`. Say "my work email", get the address. Matching is case-insensitive and fires on whole phrases only, longest trigger first, in a single pass, so an expansion that happens to contain another trigger is never re-expanded.
+- **`profiles.json`.** Per-application overrides, keyed on the process name: `tone`, `formatting` (`structured`, `prose` or `none`), `cleanup` (`light`, `standard`, `aggressive`) and free-text `instructions`. Anything you leave out falls through to the built-in behaviour for that app, so you can correct one thing about one app without inheriting a frozen copy of everything else.
+
+## Spoken commands
+
+- "new line" and "new paragraph" work in both modes. They are guarded against ordinary speech, so "we are entering a new line of business" stays one sentence.
+- Spoken punctuation ("comma", "period", "question mark") is handled by the model in Online mode. Offline it is off by default, behind `SPOKEN_PUNCTUATION=true` in `.env`, because those are ordinary English words and "the comma is missing" must not come out as "the , is missing".
+
 ## How it works
 
-- **Hotkey.** Double-tap either Ctrl key. There is no chord, because Fn is not reliably interceptable on Windows.
-- **Online transcription and cleanup.** One Gemini call transcribes the audio, drops mid-utterance corrections and retractions, removes filler words and fixes punctuation, all in a single pass.
-- **Offline transcription and cleanup.** A local Parakeet-TDT model, run through [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), transcribes the audio. A local cleanup pass then removes filler words, collapses repeated words and fixes capitalization and punctuation. Self-correction handling is not available here, since it needs instruction-following that an on-device ASR model does not have.
+- **Hotkey.** Double-tap either Ctrl key to start and to stop, Esc to cancel. There is no chord, because Fn is not reliably interceptable on Windows.
+- **Online transcription and cleanup.** One Gemini call transcribes the audio, drops mid-utterance corrections and retractions, removes filler words and fixes punctuation, all in a single pass. Your dictionary and the active app's profile ride along in the same request.
+- **Offline transcription and cleanup.** A local Parakeet-TDT model, run through [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), transcribes the audio. A local pass then removes filler words, collapses repeats, applies the spoken line-break commands, repairs the punctuation left behind by the words it deleted, and fixes capitalization. Self-correction handling is not available here, since it needs instruction-following that an on-device ASR model does not have.
 - **Auto mode.** Every dictation tries Online first. If there is no network, or the Gemini request fails outright, that dictation falls back to the Offline path and the overlay shows "Using offline mode". Real API errors such as a bad key or an exhausted quota are surfaced rather than hidden.
 - **Injection.** The clipboard is saved, set to the transcribed text, pasted with a simulated Ctrl+V, then restored.
 - **Launcher.** A "VoiceCtrl" Start Menu shortcut carrying the app's own icon is created and refreshed on every launch, so it keeps pointing at the current exe after the app is moved or updated.

@@ -110,9 +110,7 @@ public sealed class TranscriptionModeStore
         }
     }
 
-    private static string DefaultFilePath() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "VoiceCtrl", "prefs.json");
+    private static string DefaultFilePath() => UserDataPaths.Prefs;
 
     private sealed class PrefsFile
     {

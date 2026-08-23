@@ -15,6 +15,7 @@ public static class NativeMethods
     public const int VK_LCONTROL = 0xA2;
     public const int VK_RCONTROL = 0xA3;
     public const int VK_CONTROL = 0x11;
+    public const int VK_ESCAPE = 0x1B;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct KBDLLHOOKSTRUCT

@@ -2,8 +2,10 @@ using System.Net.Http;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using VoiceCtrl.Core.Audio;
 using VoiceCtrl.Core.Config;
+using VoiceCtrl.Core.Dictation;
 using VoiceCtrl.Core.Injection;
 using VoiceCtrl.Core.Interop;
 using VoiceCtrl.Core.Logging;
@@ -17,22 +19,45 @@ public partial class OverlayWindow : Window
     private static readonly SolidColorBrush RecordingBrush = new(Color.FromRgb(0xE0, 0x40, 0x2A));
     private static readonly SolidColorBrush ProcessingBrush = new(Color.FromRgb(0xC0, 0x8A, 0x2E));
 
-    private readonly OverlayViewModel _viewModel = new();
+    /// <summary>How far the level halo grows at full scale. Bounded by the window: the mic area is
+    /// 48px inside a 96px window, so anything much past this clips against the border.</summary>
+    private const double MaxLevelScale = 1.35;
+
+    /// <summary>Share of the gap closed per update on the way down. The meter rises instantly so a
+    /// sudden word registers, and falls over a few frames so it doesn't strobe between syllables.</summary>
+    private const double LevelDecay = 0.35;
+
+    private readonly DictationStateMachine _state = new();
     private readonly WasapiAudioRecorder _recorder = new();
     private readonly AppConfig _config;
     private readonly ITranscriptionClient _transcriptionClient;
     private readonly TranscriptionModeStore _modeStore;
     private readonly ITextInjector _textInjector;
-    private bool _isProcessingStop;
+    private readonly LastTranscriptionStore _lastTranscription;
 
-    public OverlayWindow(AppConfig config, ITranscriptionClient transcriptionClient, TranscriptionModeStore modeStore, ITextInjector textInjector)
+    private double _smoothedLevel;
+    private float _pendingLevel;
+    private int _isLevelUpdateQueued;
+
+    public OverlayWindow(
+        AppConfig config,
+        ITranscriptionClient transcriptionClient,
+        TranscriptionModeStore modeStore,
+        ITextInjector textInjector,
+        LastTranscriptionStore lastTranscription)
     {
+        _lastTranscription = lastTranscription;
         InitializeComponent();
         _config = config;
         _transcriptionClient = transcriptionClient;
         _modeStore = modeStore;
         _textInjector = textInjector;
+        _recorder.LevelChanged += OnRecorderLevelChanged;
     }
+
+    /// <summary>Whether an Esc press is worth dispatching. Read directly from the keyboard hook
+    /// callback, which runs on this same UI thread, so no synchronisation is needed.</summary>
+    public bool IsRecording => _state.IsRecording;
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -61,21 +86,37 @@ public partial class OverlayWindow : Window
         return IntPtr.Zero;
     }
 
-    public void ToggleVisibility()
+    /// <summary>
+    /// The single entry point for both the double-tap hotkey and the mic click. Idle opens the
+    /// bar and starts capturing in one step, so a dictation costs one gesture instead of the
+    /// show-then-click-then-click it used to.
+    /// </summary>
+    public void ToggleDictation()
     {
-        if (IsVisible)
+        switch (_state.RequestToggle())
         {
-            Hide();
+            case DictationAction.Start:
+                _ = RunStartAsync();
+                break;
+            case DictationAction.Stop:
+                _ = RunStopAsync();
+                break;
         }
-        else
+    }
+
+    /// <summary>Escape: abandon the recording and inject nothing. Safe to call at any time; it
+    /// does nothing unless a recording is actually running.</summary>
+    public void CancelDictation()
+    {
+        if (_state.RequestCancel())
         {
-            ShowAtBottomCenter();
+            _ = RunCancelAsync();
         }
     }
 
     // AdaptiveTranscriptionClient.FellBackToOffline can fire from a background thread (raised after
     // an awaited network call fails), so this dispatches explicitly rather than touching StatusText
-    // directly. Skips _viewModel/UpdateVisualState on purpose, since routing through SetError would flip
+    // directly. Skips _state/UpdateVisualState on purpose, since routing through SetError would flip
     // the mic ellipse back to idle-grey while the local model is still actually transcribing.
     public void ShowFellBackToOfflineNotice()
     {
@@ -86,35 +127,15 @@ public partial class OverlayWindow : Window
         });
     }
 
-    private void ShowAtBottomCenter()
+    private async Task RunStartAsync()
     {
-        _viewModel.Reset();
-        UpdateVisualState();
-
-        // Width/Height are fixed in XAML (not SizeToContent), so the final position is known
-        // before Show(), which avoids a show-then-jump flicker from positioning after layout.
-        Point pos = MonitorPositioner.GetBottomCenterPosition(Width, Height);
-        Left = pos.X;
-        Top = pos.Y;
-
-        Show();
-    }
-
-    private async void MicArea_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        // Guards against a click landing while the previous stop's transcribe/inject pipeline is
-        // still in flight, and the view model can already be back at Idle/Error by then (e.g. a
-        // fresh double-tap reset it), so without this a fast re-click could call Start() while
-        // the recorder is still mid-stop or the last clipboard restore hasn't happened yet.
-        if (_isProcessingStop)
-        {
-            return;
-        }
-
-        if (_viewModel.State == OverlayState.Idle)
+        try
         {
             try
             {
+                // Before the window work, not after: the user is already speaking by the time the
+                // second tap of the double-tap lands, so every millisecond spent on layout before
+                // the capture device is live is a millisecond clipped off the front of the clip.
                 _recorder.Start();
             }
             catch (Exception ex)
@@ -129,29 +150,130 @@ public partial class OverlayWindow : Window
             // fixed startup choice. AdaptiveTranscriptionClient decides that internally.
             _ = _transcriptionClient.PrewarmConnectionAsync();
 
-            _viewModel.ToggleRecording();
-            UpdateVisualState();
-            return;
+            // State before Show: the bar has to open already red, since it now appears only
+            // because a recording started, never as an idle prompt waiting to be clicked.
+            _state.SetRecording();
+            ShowBar();
         }
-
-        if (_viewModel.State != OverlayState.Recording)
+        catch (Exception ex)
         {
-            // Processing or Error, so ignore extra clicks rather than re-entering the pipeline.
-            return;
-        }
-
-        _viewModel.SetProcessing();
-        UpdateVisualState();
-
-        _isProcessingStop = true;
-        try
-        {
-            await RunStopPipelineAsync().ConfigureAwait(true);
+            SimpleFileLogger.LogError("StartDictation", ex);
+            _state.Reset();
+            Hide();
         }
         finally
         {
-            _isProcessingStop = false;
+            _state.EndTransition();
         }
+    }
+
+    private async Task RunStopAsync()
+    {
+        try
+        {
+            _state.SetProcessing();
+            UpdateVisualState();
+
+            await RunStopPipelineAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            // RunStopPipelineAsync handles every failure it expects. Anything reaching here is
+            // unforeseen, and swallowing it silently would leave the bar stuck on amber forever.
+            SimpleFileLogger.LogError("StopDictation", ex);
+            _state.Reset();
+            Hide();
+        }
+        finally
+        {
+            _state.EndTransition();
+        }
+    }
+
+    private async Task RunCancelAsync()
+    {
+        try
+        {
+            // Still has to be drained rather than just abandoned: the capture device stays open
+            // until StopRecording completes, and leaking it would make the next Start() fail.
+            await _recorder.DiscardAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            SimpleFileLogger.LogError("CancelDictation", ex);
+        }
+        finally
+        {
+            _state.Reset();
+            _state.EndTransition();
+            UpdateVisualState();
+            Hide();
+        }
+    }
+
+    /// <summary>
+    /// Raised on the WASAPI capture thread. Coalescing rather than posting every sample keeps a
+    /// busy dispatcher from accumulating a backlog of stale level updates that would then play
+    /// back as a laggy meter: the newest value always wins, and at most one post is ever pending.
+    /// </summary>
+    private void OnRecorderLevelChanged(float level)
+    {
+        _pendingLevel = level;
+
+        if (Interlocked.Exchange(ref _isLevelUpdateQueued, 1) == 1)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
+        {
+            Interlocked.Exchange(ref _isLevelUpdateQueued, 0);
+            ApplyLevel(_pendingLevel);
+        });
+    }
+
+    private void ApplyLevel(float level)
+    {
+        if (_state.State != DictationState.Recording)
+        {
+            ResetLevel();
+            return;
+        }
+
+        _smoothedLevel = level > _smoothedLevel
+            ? level
+            : _smoothedLevel + ((level - _smoothedLevel) * LevelDecay);
+
+        double scale = 1.0 + (_smoothedLevel * (MaxLevelScale - 1.0));
+        LevelScale.ScaleX = scale;
+        LevelScale.ScaleY = scale;
+    }
+
+    private void ResetLevel()
+    {
+        _smoothedLevel = 0;
+        LevelScale.ScaleX = 1.0;
+        LevelScale.ScaleY = 1.0;
+    }
+
+    private void ShowBar()
+    {
+        UpdateVisualState();
+
+        // Width/Height are fixed in XAML (not SizeToContent), so the final position is known
+        // before Show(), which avoids a show-then-jump flicker from positioning after layout.
+        Point pos = MonitorPositioner.GetBottomCenterPosition(Width, Height);
+        Left = pos.X;
+        Top = pos.Y;
+
+        Show();
+    }
+
+    private void MicArea_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        // Kept as a secondary path now that the hotkey drives everything: it costs nothing, and
+        // it is how someone discovers what the bar does the first time they see it.
+        ToggleDictation();
     }
 
     private async Task RunStopPipelineAsync()
@@ -223,6 +345,10 @@ public partial class OverlayWindow : Window
             return;
         }
 
+        // Recorded before the injection is attempted, not after it succeeds: the case worth
+        // covering is precisely the one where the paste does not land where the user expected.
+        _lastTranscription.Set(text);
+
         InjectionResult result = await _textInjector.InjectAsync(text).ConfigureAwait(true);
         long injectElapsedMs = pipelineStopwatch.ElapsedMilliseconds;
 
@@ -230,40 +356,63 @@ public partial class OverlayWindow : Window
             $"Pipeline timing: mode={_modeStore.Current} stop={stopElapsedMs}ms transcribe={transcribeElapsedMs - stopElapsedMs}ms " +
             $"inject={injectElapsedMs - transcribeElapsedMs}ms total={injectElapsedMs}ms");
 
-        if (result == InjectionResult.ClipboardOnlyElevatedTarget)
+        switch (result)
         {
-            await ShowTransientMessageAsync("Copied. Press Ctrl+V (elevated window)").ConfigureAwait(true);
-        }
-        else
-        {
-            _viewModel.Reset();
-            Hide();
+            case InjectionResult.ClipboardOnlyElevatedTarget:
+                await ShowTransientMessageAsync("Copied. Press Ctrl+V (elevated window)").ConfigureAwait(true);
+                break;
+
+            case InjectionResult.Failed:
+                // Names the recovery rather than just reporting the failure, since the whole point
+                // of keeping the text is that the user knows where to go and get it.
+                await ShowTransientMessageAsync("Paste failed. Tray: Copy last transcription").ConfigureAwait(true);
+                break;
+
+            default:
+                _state.Reset();
+                Hide();
+                break;
         }
     }
 
+    /// <summary>
+    /// Shows a message on the bar, then hides it. Callers must already hold the state machine's
+    /// transition gate for the whole call: the auto-hide runs after an await, and if a new
+    /// recording were allowed to start in the meantime, this method's Hide() would kill it.
+    /// </summary>
     private async Task ShowTransientMessageAsync(string message)
     {
-        _viewModel.SetError(message);
-        UpdateVisualState();
+        _state.SetError(message);
+        ShowBar();
 
         await Task.Delay(_config.AutoHideDelayMs).ConfigureAwait(true);
 
-        _viewModel.Reset();
+        _state.Reset();
+        UpdateVisualState();
         Hide();
     }
 
     private void UpdateVisualState()
     {
-        MicEllipse.Fill = _viewModel.State switch
+        MicEllipse.Fill = _state.State switch
         {
-            OverlayState.Recording => RecordingBrush,
-            OverlayState.Processing => ProcessingBrush,
+            DictationState.Recording => RecordingBrush,
+            DictationState.Processing => ProcessingBrush,
             _ => IdleBrush,
         };
 
-        if (_viewModel.State == OverlayState.Error && _viewModel.StatusMessage is not null)
+        bool isRecording = _state.State == DictationState.Recording;
+        LevelEllipse.Visibility = isRecording ? Visibility.Visible : Visibility.Hidden;
+        if (!isRecording)
         {
-            StatusText.Text = _viewModel.StatusMessage;
+            // Collapsed on the way out so the next recording opens from silence rather than
+            // inheriting however loud the last word of the previous one happened to be.
+            ResetLevel();
+        }
+
+        if (_state.State == DictationState.Error && _state.StatusMessage is not null)
+        {
+            StatusText.Text = _state.StatusMessage;
             StatusText.Visibility = Visibility.Visible;
         }
         else

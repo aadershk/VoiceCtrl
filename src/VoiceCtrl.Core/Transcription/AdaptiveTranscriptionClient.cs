@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.NetworkInformation;
 using VoiceCtrl.Core.Config;
 using VoiceCtrl.Core.Logging;
+using VoiceCtrl.Core.Personalization;
 
 namespace VoiceCtrl.Core.Transcription;
 
@@ -21,13 +22,29 @@ public sealed class AdaptiveTranscriptionClient : ITranscriptionClient
     /// the offline transcription has already succeeded or is about to be attempted regardless.</summary>
     public event Action? FellBackToOffline;
 
+    /// <summary>Long enough for a moment of upstream congestion to clear, short enough that the
+    /// user reads the extra wait as the request being slow rather than as the app having hung.</summary>
+    private const int OnlineRetryDelayMs = 400;
+
     private readonly TranscriptionModeStore _modeStore;
     private readonly ITranscriptionClient _onlineClient;
     private readonly ITranscriptionClient _offlineClient;
+    private readonly PersonalizationStore _personalization;
     private readonly bool _isApiKeyConfigured;
 
-    public AdaptiveTranscriptionClient(AppConfig config, TranscriptionModeStore modeStore)
-        : this(modeStore, new GeminiTranscriptionClient(config), new LocalTranscriptionClient(config), config.IsApiKeyConfigured)
+    public AdaptiveTranscriptionClient(
+        AppConfig config,
+        TranscriptionModeStore modeStore,
+        PersonalizationStore? personalization = null)
+        : this(
+            modeStore,
+            new GeminiTranscriptionClient(config, personalization: personalization),
+            new LocalTranscriptionClient(
+                config,
+                shouldStayResident: () => modeStore.Current == TranscriptionModePreference.Offline,
+                personalization: personalization),
+            config.IsApiKeyConfigured,
+            personalization)
     {
     }
 
@@ -37,21 +54,53 @@ public sealed class AdaptiveTranscriptionClient : ITranscriptionClient
         TranscriptionModeStore modeStore,
         ITranscriptionClient onlineClient,
         ITranscriptionClient offlineClient,
-        bool isApiKeyConfigured)
+        bool isApiKeyConfigured,
+        PersonalizationStore? personalization = null)
     {
         _modeStore = modeStore;
         _onlineClient = onlineClient;
         _offlineClient = offlineClient;
         _isApiKeyConfigured = isApiKeyConfigured;
+        _personalization = personalization ?? PersonalizationStore.Empty;
     }
 
-    public Task<string?> TranscribeAsync(byte[] wavBytes, CancellationToken cancellationToken = default) =>
-        _modeStore.Current switch
+    public async Task<string?> TranscribeAsync(byte[] wavBytes, CancellationToken cancellationToken = default)
+    {
+        string? text = await (_modeStore.Current switch
         {
             TranscriptionModePreference.Offline => _offlineClient.TranscribeAsync(wavBytes, cancellationToken),
-            TranscriptionModePreference.Online => _onlineClient.TranscribeAsync(wavBytes, cancellationToken),
+            TranscriptionModePreference.Online => TranscribeOnlineAsync(wavBytes, cancellationToken),
             _ => TranscribeAutoAsync(wavBytes, cancellationToken),
-        };
+        }).ConfigureAwait(false);
+
+        // Applied here, once, rather than inside each client: a snippet is a substitution the user
+        // asked for by name, so it has to behave identically whichever path served the audio, and
+        // in Auto mode the user does not control which one that was.
+        return text is null ? null : _personalization.Snippets.Expand(text);
+    }
+
+    /// <summary>
+    /// Explicit Online has nowhere to fall back to, so a transient error there costs the user the
+    /// whole dictation, which they have already spoken and cannot get back. One short retry
+    /// recovers the common "model is currently experiencing high demand" case. Deliberately not
+    /// done in Auto: falling straight through to the local model is faster than waiting out a
+    /// backoff, since offline transcription measures faster than a single online round trip.
+    /// Only one retry, so a real outage surfaces as an error instead of a long silent hang.
+    /// </summary>
+    private async Task<string?> TranscribeOnlineAsync(byte[] wavBytes, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _onlineClient.TranscribeAsync(wavBytes, cancellationToken).ConfigureAwait(false);
+        }
+        catch (GeminiApiException ex) when (IsTransient(ex) && !cancellationToken.IsCancellationRequested)
+        {
+            SimpleFileLogger.LogInfo($"Online mode: transient API error ({(int)ex.StatusCode} {ex.StatusCode}), retrying once");
+        }
+
+        await Task.Delay(OnlineRetryDelayMs, cancellationToken).ConfigureAwait(false);
+        return await _onlineClient.TranscribeAsync(wavBytes, cancellationToken).ConfigureAwait(false);
+    }
 
     // Status codes that reflect a transient/overloaded condition on Google's side rather than
     // something wrong with the request, so it is worth falling back to offline instead of failing the

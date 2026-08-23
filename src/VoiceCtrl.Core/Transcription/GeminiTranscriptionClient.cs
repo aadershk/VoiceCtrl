@@ -1,9 +1,11 @@
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
+using VoiceCtrl.Core.Audio;
 using VoiceCtrl.Core.Config;
 using VoiceCtrl.Core.Injection;
 using VoiceCtrl.Core.Logging;
+using VoiceCtrl.Core.Personalization;
 
 namespace VoiceCtrl.Core.Transcription;
 
@@ -47,10 +49,16 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
     private readonly bool _enableToneAwareness;
     private readonly IReadOnlyList<string> _promptStyleApps;
     private readonly IReadOnlyList<string> _chatStyleApps;
+    private readonly bool _compressUpload;
+    private readonly PersonalizationStore _personalization;
     private readonly Func<string?> _getForegroundProcessName;
 
-    public GeminiTranscriptionClient(AppConfig config, Func<string?>? foregroundProcessNameProvider = null)
+    public GeminiTranscriptionClient(
+        AppConfig config,
+        Func<string?>? foregroundProcessNameProvider = null,
+        PersonalizationStore? personalization = null)
     {
+        _personalization = personalization ?? PersonalizationStore.Empty;
         _apiKey = config.GeminiApiKey;
         _modelId = config.GeminiModelId;
         _thinkingLevel = config.ThinkingLevel;
@@ -59,6 +67,7 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
         _enableToneAwareness = config.EnableToneAwareness;
         _promptStyleApps = config.PromptStyleApps;
         _chatStyleApps = config.ChatStyleApps;
+        _compressUpload = config.CompressUpload;
         // Overridable so tests/smoke-harnesses can force a specific "foreground app" instead of
         // depending on whatever window actually has focus during the run.
         _getForegroundProcessName = foregroundProcessNameProvider ?? ForegroundAppDetector.GetForegroundProcessName;
@@ -69,9 +78,62 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
         _filesApiUploader = new GeminiFilesApiUploader(_apiKey);
     }
 
-    private string BuildPrompt(string? toneHint, string? formattingHint)
+    /// <summary>Everything about a single request that depends on which application the speaker is
+    /// dictating into. Resolved once per transcription, since a profile can override any of it.</summary>
+    private readonly record struct PromptContext(
+        string CleanupLevel,
+        string? ToneHint,
+        string? FormattingHint,
+        string? ExtraInstructions);
+
+    /// <summary>
+    /// Layers the user's profiles.json entry over the .env lists and then the built-in tables.
+    /// A field the profile does not mention falls through rather than blanking, so overriding one
+    /// aspect of an app never silently discards the rest.
+    /// </summary>
+    private PromptContext ResolvePromptContext(string? processName)
     {
-        string prompt = string.Format(PromptTemplate, CleanupLevelMapper.Resolve(_cleanupLevel));
+        AppProfile? profile = _personalization.Profiles.Resolve(processName);
+
+        string? explicitTone = NullIfBlank(profile?.Tone);
+        string? explicitFormatting = NullIfBlank(profile?.Formatting);
+
+        // A tone stated in a profile is the user speaking directly, so it applies even when
+        // ENABLE_TONE_AWARENESS is off. That flag governs VoiceCtrl guessing a tone from the
+        // foreground app, which is a different thing from the user writing one down.
+        string? toneHint = explicitTone switch
+        {
+            null => _enableToneAwareness ? ToneHintMapper.Resolve(processName) : null,
+            _ when IsNone(explicitTone) => null,
+            _ => explicitTone,
+        };
+
+        string? formattingHint = explicitFormatting switch
+        {
+            null => FormattingHintMapper.Resolve(processName, _promptStyleApps, _chatStyleApps),
+            _ when IsNone(explicitFormatting) => null,
+            // An unrecognised value is treated as a typo rather than as an instruction to suppress
+            // formatting, so a misspelled profile degrades to the built-in behaviour.
+            _ => FormattingHintMapper.ResolveExplicit(explicitFormatting)
+                 ?? FormattingHintMapper.Resolve(processName, _promptStyleApps, _chatStyleApps),
+        };
+
+        return new PromptContext(
+            NullIfBlank(profile?.Cleanup) ?? _cleanupLevel,
+            toneHint,
+            formattingHint,
+            NullIfBlank(profile?.Instructions));
+    }
+
+    private static string? NullIfBlank(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool IsNone(string value) =>
+        string.Equals(value, AppProfile.None, StringComparison.OrdinalIgnoreCase);
+
+    private string BuildPrompt(PromptContext context, IReadOnlyList<string> dictionaryTerms)
+    {
+        string prompt = string.Format(PromptTemplate, CleanupLevelMapper.Resolve(context.CleanupLevel));
 
         if (!string.IsNullOrWhiteSpace(_styleNotes))
         {
@@ -79,16 +141,33 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
                       $"takes priority if these ever conflict with it:\n{_styleNotes.Trim()}";
         }
 
-        if (!string.IsNullOrWhiteSpace(toneHint))
+        if (dictionaryTerms.Count > 0)
         {
-            prompt += "\n\nContext hint (best-effort, from the active application, ignore if it " +
-                      $"doesn't fit what was actually said): {toneHint}";
+            // Framed as spelling rather than as vocabulary on purpose. The failure mode worth
+            // guarding against is the model reaching for a listed term because it appears in the
+            // prompt, when the speaker said something else entirely.
+            prompt += "\n\nSpelling reference. These are names and terms this speaker uses. When " +
+                      "something in the audio clearly matches one of these, spell it exactly as " +
+                      "written here. Never insert one that was not actually said:\n- " +
+                      string.Join("\n- ", dictionaryTerms);
         }
 
-        if (!string.IsNullOrWhiteSpace(formattingHint))
+        if (!string.IsNullOrWhiteSpace(context.ToneHint))
+        {
+            prompt += "\n\nContext hint (best-effort, from the active application, ignore if it " +
+                      $"doesn't fit what was actually said): {context.ToneHint}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(context.FormattingHint))
         {
             prompt += "\n\nFormatting hint (best-effort, from the active application, ignore if " +
-                      $"it doesn't fit what was actually said): {formattingHint}";
+                      $"it doesn't fit what was actually said): {context.FormattingHint}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(context.ExtraInstructions))
+        {
+            prompt += "\n\nInstructions for this specific application, from the user's profile for " +
+                      $"it. Rule 4 still takes priority if these conflict with it: {context.ExtraInstructions}";
         }
 
         return prompt;
@@ -112,23 +191,47 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
         }
     }
 
+    /// <summary>
+    /// Picks what actually goes on the wire. Compression is skipped entirely when disabled, and
+    /// falls back to the original WAV whenever the encoder cannot produce something smaller, so
+    /// the only way this changes behaviour is by making the upload shorter.
+    /// </summary>
+    private (byte[] Bytes, string MimeType) PrepareUploadPayload(byte[] wavBytes)
+    {
+        if (!_compressUpload)
+        {
+            return (wavBytes, "audio/wav");
+        }
+
+        byte[]? mp3Bytes = Mp3Encoder.TryEncode(wavBytes);
+
+        // The size check is not just belt-and-braces: on a very short clip the MP3 container and
+        // frame overhead can exceed what compression saves, and sending the larger of the two
+        // would defeat the point.
+        return mp3Bytes is not null && mp3Bytes.Length < wavBytes.Length
+            ? (mp3Bytes, "audio/mpeg")
+            : (wavBytes, "audio/wav");
+    }
+
     public async Task<string?> TranscribeAsync(byte[] wavBytes, CancellationToken cancellationToken = default)
     {
-        RequestPart audioPart = wavBytes.Length > FilesApiThresholdBytes
+        (byte[] audioBytes, string mimeType) = PrepareUploadPayload(wavBytes);
+
+        RequestPart audioPart = audioBytes.Length > FilesApiThresholdBytes
             ? new RequestPart
             {
                 FileData = new FileData
                 {
-                    MimeType = "audio/wav",
-                    FileUri = await _filesApiUploader.UploadAsync(wavBytes, "audio/wav", cancellationToken).ConfigureAwait(true),
+                    MimeType = mimeType,
+                    FileUri = await _filesApiUploader.UploadAsync(audioBytes, mimeType, cancellationToken).ConfigureAwait(true),
                 },
             }
             : new RequestPart
             {
                 InlineData = new InlineData
                 {
-                    MimeType = "audio/wav",
-                    Data = Convert.ToBase64String(wavBytes),
+                    MimeType = mimeType,
+                    Data = Convert.ToBase64String(audioBytes),
                 },
             };
 
@@ -137,13 +240,13 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
         // (structured vs. prose) is a separate feature from tone awareness and must not go dark
         // just because ENABLE_TONE_AWARENESS=false, since only the tone hint is gated by that flag.
         string? processName = _getForegroundProcessName();
-        string? toneHint = _enableToneAwareness && processName is not null ? ToneHintMapper.Resolve(processName) : null;
-        string? formattingHint = processName is not null
-            ? FormattingHintMapper.Resolve(processName, _promptStyleApps, _chatStyleApps)
-            : null;
+        PromptContext promptContext = ResolvePromptContext(processName);
+        IReadOnlyList<string> dictionaryTerms = _personalization.DictionaryTerms;
+
         SimpleFileLogger.LogInfo(
-            $"Style detection: process={processName ?? "(none)"} tone={(toneHint is null ? "none" : "set")} " +
-            $"formatting={(formattingHint is null ? "none" : "set")}");
+            $"Style detection: process={processName ?? "(none)"} tone={(promptContext.ToneHint is null ? "none" : "set")} " +
+            $"formatting={(promptContext.FormattingHint is null ? "none" : "set")} " +
+            $"cleanup={promptContext.CleanupLevel} dictionary={dictionaryTerms.Count}");
 
         var request = new GenerateContentRequest
         {
@@ -152,7 +255,7 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
                 new RequestContent
                 {
                     Role = "user",
-                    Parts = [new RequestPart { Text = BuildPrompt(toneHint, formattingHint) }, audioPart],
+                    Parts = [new RequestPart { Text = BuildPrompt(promptContext, dictionaryTerms) }, audioPart],
                 },
             ],
             GenerationConfig = new GenerationConfig { ThinkingConfig = new ThinkingConfig { ThinkingLevel = _thinkingLevel } },

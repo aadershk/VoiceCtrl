@@ -21,6 +21,16 @@ public static class ConfigLoader
     private const string DefaultTranscriptionMode = "Online";
     private const string DefaultLocalModelVariant = "parakeet-tdt-0.6b-v2";
 
+    // Off by default: MP3 upload cuts the payload by roughly a factor of ten, but nothing about
+    // accuracy at 32kbps has been verified against the live API yet, and a default that might
+    // quietly degrade transcripts is worse than one that is merely slower.
+    private const bool DefaultCompressUpload = false;
+
+    // Off by default: "comma" and "period" are ordinary words, and a speaker who says "the comma
+    // is missing" would get "the , is missing". Opt-in for people who dictate punctuation aloud
+    // deliberately, which is a habit rather than the common case.
+    private const bool DefaultSpokenPunctuation = false;
+
     public static AppConfig Load(string envFilePath)
     {
         Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase);
@@ -64,7 +74,29 @@ public static class ConfigLoader
             TranscriptionMode = explicitMode ?? DefaultTranscriptionMode,
             ExplicitTranscriptionMode = explicitMode,
             LocalModelVariant = NonEmptyOrDefault(values.GetValueOrDefault("LOCAL_MODEL_VARIANT"), DefaultLocalModelVariant),
+            LocalNumThreads = ResolveLocalNumThreads(values.GetValueOrDefault("LOCAL_NUM_THREADS")),
+            CompressUpload = ParseBoolOrDefault(values.GetValueOrDefault("COMPRESS_UPLOAD"), DefaultCompressUpload),
+            SpokenPunctuation = ParseBoolOrDefault(values.GetValueOrDefault("SPOKEN_PUNCTUATION"), DefaultSpokenPunctuation),
         };
+    }
+
+    /// <summary>
+    /// Scales the local model's thread count to the machine. The upper bound is there because
+    /// ONNX intra-op parallelism stops paying for itself well before it runs out of cores on a
+    /// model this size, and past that point the extra threads only add contention.
+    /// A configured value is clamped rather than rejected: 0 or a negative would make sherpa-onnx
+    /// behave unpredictably, and a wildly high one would thrash.
+    /// </summary>
+    private static int ResolveLocalNumThreads(string? configured)
+    {
+        const int minThreads = 2;
+        const int maxThreads = 8;
+
+        int resolved = int.TryParse(configured, out int parsed)
+            ? parsed
+            : Environment.ProcessorCount / 2;
+
+        return Math.Clamp(resolved, minThreads, maxThreads);
     }
 
     private static string NonEmptyOrDefault(string? value, string fallback) =>

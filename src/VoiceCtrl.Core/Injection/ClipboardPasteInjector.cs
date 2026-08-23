@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows;
+using VoiceCtrl.Core.Logging;
 
 namespace VoiceCtrl.Core.Injection;
 
@@ -16,21 +17,32 @@ public sealed class ClipboardPasteInjector : ITextInjector
 
     public async Task<InjectionResult> InjectAsync(string text)
     {
-        if (ElevationChecker.IsForegroundWindowElevated())
+        try
         {
+            if (ElevationChecker.IsForegroundWindowElevated())
+            {
+                await SetClipboardTextWithRetryAsync(text).ConfigureAwait(true);
+                return InjectionResult.ClipboardOnlyElevatedTarget;
+            }
+
+            IDataObject? saved = TryGetClipboardSnapshot();
             await SetClipboardTextWithRetryAsync(text).ConfigureAwait(true);
-            return InjectionResult.ClipboardOnlyElevatedTarget;
+            SendInputHelper.SendCtrlV();
+
+            // Give the target app a moment to actually read the clipboard before we overwrite it again.
+            await Task.Delay(PostPasteSettleDelay).ConfigureAwait(true);
+            await RestoreClipboardWithRetryAsync(saved).ConfigureAwait(true);
+
+            return InjectionResult.Injected;
         }
-
-        IDataObject? saved = TryGetClipboardSnapshot();
-        await SetClipboardTextWithRetryAsync(text).ConfigureAwait(true);
-        SendInputHelper.SendCtrlV();
-
-        // Give the target app a moment to actually read the clipboard before we overwrite it again.
-        await Task.Delay(PostPasteSettleDelay).ConfigureAwait(true);
-        await RestoreClipboardWithRetryAsync(saved).ConfigureAwait(true);
-
-        return InjectionResult.Injected;
+        catch (COMException ex)
+        {
+            // Every retry against the clipboard has already been exhausted by this point. The user
+            // has spoken words they cannot get back by repeating the gesture, so this returns a
+            // result the caller can act on rather than throwing into the generic handler.
+            SimpleFileLogger.LogError("Injection", ex);
+            return InjectionResult.Failed;
+        }
     }
 
     private static IDataObject? TryGetClipboardSnapshot()

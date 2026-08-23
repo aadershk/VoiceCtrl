@@ -1,3 +1,4 @@
+using VoiceCtrl.Core.Personalization;
 using VoiceCtrl.Core.Transcription;
 using Xunit;
 
@@ -72,5 +73,26 @@ public class FormattingHintMapperTests
         // "windowsterminal" is structured by default, and an explicit override should still win.
         string? result = FormattingHintMapper.Resolve("windowsterminal", extraProseApps: new[] { "windowsterminal" });
         Assert.Contains("continuous natural sentences", result);
+    }
+
+    [Theory]
+    [InlineData(AppProfile.Structured, "Markdown")]
+    [InlineData(AppProfile.Prose, "continuous natural sentences")]
+    [InlineData("  STRUCTURED  ", "Markdown")]
+    public void ResolveExplicit_MapsAProfileValueToItsHint(string formatting, string expected)
+    {
+        Assert.Contains(expected, FormattingHintMapper.ResolveExplicit(formatting));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("bulleted")]
+    [InlineData(AppProfile.None)]
+    public void ResolveExplicit_ReturnsNullForAnythingItDoesNotRecognize(string? formatting)
+    {
+        // A typo in profiles.json has to fall through to the built-in mapping rather than silently
+        // turning formatting off. Suppression is the caller's job, and only for the literal "none".
+        Assert.Null(FormattingHintMapper.ResolveExplicit(formatting));
     }
 }
