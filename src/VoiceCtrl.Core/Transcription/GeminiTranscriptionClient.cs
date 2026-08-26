@@ -12,7 +12,7 @@ namespace VoiceCtrl.Core.Transcription;
 public sealed class GeminiTranscriptionClient : ITranscriptionClient
 {
     private const string NoSpeechSentinel = "[NO_SPEECH_DETECTED]";
-    private const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
+    internal const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
 
     // Base64 inflates payload ~33%, and generateContent has a combined-request cap comfortably
     // under the raw 20MB inline_data limit, and this threshold keeps well clear of it. A dictation

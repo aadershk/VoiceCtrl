@@ -1,15 +1,13 @@
 using System.Diagnostics;
 using System.IO;
-using System.Threading;
-using VoiceCtrl.Core.Interop;
 using VoiceCtrl.Tray;
 
 namespace VoiceCtrl.Bootstrap;
 
 /// <summary>
-/// One-time setup on first launch: attaches a console to interactively ask for a transcription
-/// mode and (for Online) a Gemini API key, writes .env from the answers, and turns on autostart.
-/// A blank GEMINI_API_KEY (rather than copying placeholder text) means AppConfig.IsApiKeyConfigured
+/// One-time setup on first launch: shows a small WPF wizard to pick a transcription mode and
+/// (for Online) a Gemini API key, writes .env from the answers, and turns on autostart. A blank
+/// GEMINI_API_KEY (rather than copying placeholder text) means AppConfig.IsApiKeyConfigured
 /// correctly reports false until the user actually fills one in.
 /// </summary>
 public static class FirstRunSetup
@@ -21,65 +19,14 @@ public static class FirstRunSetup
             return false;
         }
 
-        NativeMethods.AllocConsole();
-        try
-        {
-            RunInteractiveSetup(envPath);
-        }
-        finally
-        {
-            NativeMethods.FreeConsole();
-        }
+        var setupWindow = new SetupWindow();
+        setupWindow.ShowDialog();
+
+        File.WriteAllText(envPath, BuildEnvContents(setupWindow.Offline, setupWindow.ApiKey));
 
         AutoStartManager.Enable();
 
         return true;
-    }
-
-    private static void RunInteractiveSetup(string envPath)
-    {
-        Console.WriteLine("===================================================");
-        Console.WriteLine(" VoiceCtrl first-run setup");
-        Console.WriteLine("===================================================");
-        Console.WriteLine();
-        Console.WriteLine("VoiceCtrl has two transcription modes:");
-        Console.WriteLine("  [1] Online:  Google Gemini. Best accuracy, needs your own free API key.");
-        Console.WriteLine("  [2] Offline: runs fully on this PC. No key, no internet, no account.");
-        Console.WriteLine("               Downloads a ~700MB speech model the first time you use it.");
-        Console.WriteLine();
-        Console.Write("Choose a mode [1=Online (default), 2=Offline]: ");
-
-        string? modeAnswer = Console.ReadLine();
-        bool offline = modeAnswer?.Trim() == "2";
-
-        string apiKey = string.Empty;
-        if (!offline)
-        {
-            Console.WriteLine();
-            Console.WriteLine("Get a free Gemini API key at: https://aistudio.google.com/apikey");
-            Console.Write("Paste your API key (or press Enter to add it later): ");
-            apiKey = Console.ReadLine()?.Trim() ?? string.Empty;
-        }
-
-        File.WriteAllText(envPath, BuildEnvContents(offline, apiKey));
-
-        Console.WriteLine();
-        if (offline)
-        {
-            Console.WriteLine("Offline mode selected. The speech model downloads on first use.");
-        }
-        else if (string.IsNullOrEmpty(apiKey))
-        {
-            Console.WriteLine("No key entered. Add one later via the tray icon's Settings menu.");
-        }
-        else
-        {
-            Console.WriteLine("Online mode configured.");
-        }
-
-        Console.WriteLine("Setup complete. VoiceCtrl is now running in your system tray.");
-        Console.WriteLine("This window will close in a few seconds...");
-        Thread.Sleep(3000);
     }
 
     private static string BuildEnvContents(bool offline, string apiKey) =>
@@ -126,6 +73,27 @@ public static class FirstRunSetup
         try
         {
             Process.Start(new ProcessStartInfo("notepad.exe", $"\"{path}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VoiceCtrl] Failed to open {path} in Notepad: {ex}");
+        }
+    }
+
+    /// <summary>Same as OpenInNotepad, but awaits Notepad closing and then invokes onClosed. Used
+    /// for .env, where edits need a restart to take effect and the user should be told so.</summary>
+    public static async Task OpenInNotepadAndNotifyOnCloseAsync(string path, Action onClosed)
+    {
+        try
+        {
+            using Process? process = Process.Start(new ProcessStartInfo("notepad.exe", $"\"{path}\"") { UseShellExecute = true });
+            if (process is null)
+            {
+                return;
+            }
+
+            await process.WaitForExitAsync().ConfigureAwait(true);
+            onClosed();
         }
         catch (Exception ex)
         {

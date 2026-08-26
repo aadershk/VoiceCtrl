@@ -9,7 +9,7 @@ namespace VoiceCtrl.Core.Config;
 /// </summary>
 public static class ConfigLoader
 {
-    private const string DefaultModelId = "gemini-3.7-flash";
+    internal const string DefaultModelId = "gemini-3.7-flash";
     private const int DefaultDoubleTapWindowMs = 400;
     private const int DefaultAutoHideDelayMs = 1500;
 
@@ -19,7 +19,7 @@ public static class ConfigLoader
     private const string DefaultThinkingLevel = "low";
     private const string DefaultCleanupLevel = "standard";
     private const string DefaultTranscriptionMode = "Online";
-    private const string DefaultLocalModelVariant = "parakeet-tdt-0.6b-v2";
+    internal const string DefaultLocalModelVariant = "parakeet-tdt-0.6b-v2";
 
     // Off by default: MP3 upload cuts the payload by roughly a factor of ten, but nothing about
     // accuracy at 32kbps has been verified against the live API yet, and a default that might

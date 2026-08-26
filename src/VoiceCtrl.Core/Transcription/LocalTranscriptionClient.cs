@@ -21,9 +21,6 @@ namespace VoiceCtrl.Core.Transcription;
 /// </summary>
 public sealed class LocalTranscriptionClient : ITranscriptionClient
 {
-    private const string HuggingFaceRepo = "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8";
-    private static readonly string[] ModelFileNames =
-        ["encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt"];
     private static readonly TimeSpan IdleUnloadDelay = TimeSpan.FromMinutes(5);
 
     private readonly string _modelDirectory;
@@ -149,39 +146,8 @@ public sealed class LocalTranscriptionClient : ITranscriptionClient
         return _recognizer;
     }
 
-    private async Task EnsureModelDownloadedAsync(CancellationToken cancellationToken)
-    {
-        Directory.CreateDirectory(_modelDirectory);
-
-        foreach (string fileName in ModelFileNames)
-        {
-            string destinationPath = Path.Combine(_modelDirectory, fileName);
-            if (File.Exists(destinationPath))
-            {
-                continue;
-            }
-
-            SimpleFileLogger.LogInfo($"Downloading offline model file {fileName} (one-time, ~650-700MB total)...");
-
-            string url = $"https://huggingface.co/{HuggingFaceRepo}/resolve/main/{fileName}";
-            string tempPath = destinationPath + ".download";
-
-            using (HttpResponseMessage response = await _httpClient
-                .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                .ConfigureAwait(false))
-            {
-                response.EnsureSuccessStatusCode();
-
-                await using (FileStream fileStream = File.Create(tempPath))
-                {
-                    await response.Content.CopyToAsync(fileStream, cancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            File.Move(tempPath, destinationPath, overwrite: true);
-            SimpleFileLogger.LogInfo($"Downloaded offline model file {fileName}.");
-        }
-    }
+    private Task EnsureModelDownloadedAsync(CancellationToken cancellationToken) =>
+        LocalModelDownloader.DownloadAllAsync(_modelDirectory, _httpClient, progress: null, cancellationToken);
 
     /// <summary>
     /// The recorder always produces 16-bit/16kHz/mono WAV (see WasapiAudioRecorder), which is

@@ -191,15 +191,4 @@ public static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-
-    // --- Console allocation (first-run interactive setup) ---
-    // A WPF app (OutputType=WinExe) has no console by default; AllocConsole/FreeConsole
-    // attach and detach one on demand so first-run setup can prompt with Console.ReadLine().
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool AllocConsole();
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool FreeConsole();
 }

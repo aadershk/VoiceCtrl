@@ -50,7 +50,8 @@ public partial class App : Application
             new TrayFileEntry("Snippets...", UserDataPaths.Snippets),
             new TrayFileEntry("App profiles...", UserDataPaths.Profiles),
         ]);
-        _trayIconManager.SettingsRequested += () => FirstRunSetup.OpenInNotepad(_envPath);
+        _trayIconManager.SettingsRequested += () =>
+            _ = FirstRunSetup.OpenInNotepadAndNotifyOnCloseAsync(_envPath, () => _trayIconManager?.ShowSettingsRestartNotice());
         _trayIconManager.OpenFileRequested += FirstRunSetup.OpenInNotepad;
         _trayIconManager.QuitRequested += Shutdown;
         if (isFirstRun)

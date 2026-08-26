@@ -115,6 +115,14 @@ public sealed class TrayIconManager : IDisposable
             BalloonIcon.Info);
     }
 
+    public void ShowSettingsRestartNotice()
+    {
+        _icon.ShowBalloonTip(
+            "Restart needed",
+            "Settings changes take effect after VoiceCtrl restarts. Right-click the tray icon and choose Quit, then start VoiceCtrl again.",
+            BalloonIcon.Info);
+    }
+
     private void CopyLastTranscription()
     {
         if (_lastTranscription.Text is not { } text)

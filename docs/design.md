@@ -416,7 +416,7 @@ before the injection is attempted.
 
 ### Tray shell & config
 
-`TrayIconManager` (Hardcodet.NotifyIcon.Wpf `TaskbarIcon`: Pause/Resume, Mode, Personalize, Copy last transcription, Settings which opens `.env` in Notepad, and Quit), `AutoStartManager` (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`), `FirstRunSetup` (create `.env` from `.env.example` if missing, open in Notepad, register autostart, one-time tray balloon).
+`TrayIconManager` (Hardcodet.NotifyIcon.Wpf `TaskbarIcon`: Pause/Resume, Mode, Personalize, Copy last transcription, Settings which opens `.env` in Notepad and shows a "restart needed" balloon once it's closed (`.env` is only read at startup, so a plain reopen-and-edit doesn't take effect), and Quit), `AutoStartManager` (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`), `FirstRunSetup` (if `.env` doesn't exist yet, show `SetupWindow` — a small WPF dialog to pick Online/Offline, verify a pasted Gemini key live, or download the offline model with a progress bar — then write `.env` from its answers, register autostart, and show the one-time tray balloon). `SetupWindow` is a one-time onboarding surface only; the "no full settings GUI" boundary below still holds for every *ongoing* edit (`.env`, dictionary, snippets, profiles all stay Notepad-based).
 
 The menu takes its editable files as a `TrayFileEntry` list rather than knowing the three
 personalization paths itself, and raises `OpenFileRequested`, so adding a fourth file later is a

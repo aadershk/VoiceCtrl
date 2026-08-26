@@ -15,12 +15,12 @@ Switch modes at any time from the tray icon, under **Mode**.
 1. Go to [Releases](../../releases) and download `VoiceCtrl-win-x64.zip`.
 2. Extract it anywhere and run `VoiceCtrl.exe`.
 3. Windows SmartScreen will most likely warn that "Windows protected your PC". This build is not code-signed, so click **More info**, then **Run anyway**.
-4. On first launch a console window asks you to pick Online or Offline. For Online, paste your API key; a free one is available from [Google AI Studio](https://aistudio.google.com/apikey). Picking Online enables Auto mode, which is Gemini with offline fallback. Pick Offline if you want the app to never touch the network. Your choice is written to a local `.env` file next to the exe. Nothing is sent anywhere except your own Gemini API calls.
+4. On first launch a setup window walks you through the rest. Pick **Online** or **Offline**: Online enables Auto mode (Gemini with offline fallback) and has a button that opens [Google AI Studio](https://aistudio.google.com/apikey) in your browser for a free API key — paste it back in and the window checks it for you on the spot, or you can skip and add one later. Offline shows a real progress bar while it downloads the ~700MB speech model, so you can see it is actually ready before you start dictating. Your choice is written to a local `.env` file next to the exe. Nothing is sent anywhere except your own Gemini API calls.
 5. The app adds itself to the Start Menu as **VoiceCtrl**, so you can launch it later by typing the name.
 
 VoiceCtrl then runs from the system tray. Double-tap Ctrl anywhere to start dictating.
 
-To change the API key later, edit `.env`. The tray icon's Settings entry opens it in Notepad.
+To change the API key later, edit `.env`. The tray icon's Settings entry opens it in Notepad; VoiceCtrl will prompt you to restart it once you save and close, since `.env` is only read on startup.
 
 ## Dictating
 
