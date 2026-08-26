@@ -75,7 +75,7 @@ public partial class App : Application
         // control to the hook callback immediately so Windows never times it out, deferring
         // the actual recording and window work (which can take longer than the hook's budget)
         // to the next dispatcher cycle.
-        Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => _overlay?.ToggleDictation());
+        Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => _overlay?.ToggleBarVisibility());
     }
 
     private void OnCancelRequested()

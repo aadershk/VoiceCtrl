@@ -19,7 +19,7 @@
             <Grid x:Name="MicArea"
                   Width="48" Height="48"
                   Cursor="Hand"
-                  ToolTip="Double-tap Ctrl to stop, or Esc to cancel"
+                  ToolTip="Click to start/stop, Esc to cancel, double-tap Ctrl to hide"
                   MouseLeftButtonUp="MicArea_MouseLeftButtonUp">
                 <!-- Sits behind the mic dot and grows with microphone level. At scale 1 it is
                      exactly covered by the dot, so silence shows nothing at all. Max scale is

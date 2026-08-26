@@ -87,11 +87,11 @@ public partial class OverlayWindow : Window
     }
 
     /// <summary>
-    /// The single entry point for both the double-tap hotkey and the mic click. Idle opens the
-    /// bar and starts capturing in one step, so a dictation costs one gesture instead of the
-    /// show-then-click-then-click it used to.
+    /// The mic-click entry point. Only reachable while the bar is already visible (double-tap is
+    /// what shows it), so Idle here means "click to start" and Recording means "click to stop" —
+    /// visibility itself is never touched from this path; see <see cref="ToggleBarVisibility"/>.
     /// </summary>
-    public void ToggleDictation()
+    public void ToggleRecording()
     {
         switch (_state.RequestToggle())
         {
@@ -99,13 +99,39 @@ public partial class OverlayWindow : Window
                 _ = RunStartAsync();
                 break;
             case DictationAction.Stop:
-                _ = RunStopAsync();
+                _ = RunStopAsync(hideWhenDone: false);
                 break;
         }
     }
 
+    /// <summary>
+    /// The double-tap-hotkey entry point. Visibility is otherwise never changed by anything else
+    /// in this class: a successful paste, an error clearing, and Esc all settle back to an
+    /// idle-but-visible bar, so this is the only gesture that makes it disappear. The one
+    /// exception is a double-tap that lands mid-recording — there is no mic left to click once
+    /// the bar is hidden, so it finishes the recording (stop/transcribe/paste) before hiding
+    /// rather than silently discarding what was said.
+    /// </summary>
+    public void ToggleBarVisibility()
+    {
+        if (!IsVisible)
+        {
+            ShowBar();
+            return;
+        }
+
+        if (_state.IsRecording && _state.RequestToggle() == DictationAction.Stop)
+        {
+            _ = RunStopAsync(hideWhenDone: true);
+            return;
+        }
+
+        Hide();
+    }
+
     /// <summary>Escape: abandon the recording and inject nothing. Safe to call at any time; it
-    /// does nothing unless a recording is actually running.</summary>
+    /// does nothing unless a recording is actually running. Leaves the bar visible, idle — same
+    /// "only double-tap hides" rule as everywhere else.</summary>
     public void CancelDictation()
     {
         if (_state.RequestCancel())
@@ -150,16 +176,16 @@ public partial class OverlayWindow : Window
             // fixed startup choice. AdaptiveTranscriptionClient decides that internally.
             _ = _transcriptionClient.PrewarmConnectionAsync();
 
-            // State before Show: the bar has to open already red, since it now appears only
-            // because a recording started, never as an idle prompt waiting to be clicked.
+            // Only reachable via a click on an already-visible bar, so there is no Show() here —
+            // just flip the mic to red.
             _state.SetRecording();
-            ShowBar();
+            UpdateVisualState();
         }
         catch (Exception ex)
         {
             SimpleFileLogger.LogError("StartDictation", ex);
             _state.Reset();
-            Hide();
+            UpdateVisualState();
         }
         finally
         {
@@ -167,14 +193,14 @@ public partial class OverlayWindow : Window
         }
     }
 
-    private async Task RunStopAsync()
+    private async Task RunStopAsync(bool hideWhenDone)
     {
         try
         {
             _state.SetProcessing();
             UpdateVisualState();
 
-            await RunStopPipelineAsync().ConfigureAwait(true);
+            await RunStopPipelineAsync(hideWhenDone).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -182,7 +208,11 @@ public partial class OverlayWindow : Window
             // unforeseen, and swallowing it silently would leave the bar stuck on amber forever.
             SimpleFileLogger.LogError("StopDictation", ex);
             _state.Reset();
-            Hide();
+            UpdateVisualState();
+            if (hideWhenDone)
+            {
+                Hide();
+            }
         }
         finally
         {
@@ -207,7 +237,6 @@ public partial class OverlayWindow : Window
             _state.Reset();
             _state.EndTransition();
             UpdateVisualState();
-            Hide();
         }
     }
 
@@ -271,12 +300,10 @@ public partial class OverlayWindow : Window
 
     private void MicArea_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        // Kept as a secondary path now that the hotkey drives everything: it costs nothing, and
-        // it is how someone discovers what the bar does the first time they see it.
-        ToggleDictation();
+        ToggleRecording();
     }
 
-    private async Task RunStopPipelineAsync()
+    private async Task RunStopPipelineAsync(bool hideWhenDone)
     {
         var pipelineStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -289,7 +316,7 @@ public partial class OverlayWindow : Window
         {
             System.Diagnostics.Debug.WriteLine($"[VoiceCtrl] Failed to stop recording: {ex}");
             SimpleFileLogger.LogError("StopRecording", ex);
-            await ShowTransientMessageAsync("Recording failed").ConfigureAwait(true);
+            await ShowTransientMessageAsync("Recording failed", hideWhenDone).ConfigureAwait(true);
             return;
         }
 
@@ -297,13 +324,13 @@ public partial class OverlayWindow : Window
 
         if (clip.IsLikelySilent())
         {
-            await ShowTransientMessageAsync("No speech detected").ConfigureAwait(true);
+            await ShowTransientMessageAsync("No speech detected", hideWhenDone).ConfigureAwait(true);
             return;
         }
 
         if (_modeStore.Current == TranscriptionModePreference.Online && !_config.IsApiKeyConfigured)
         {
-            await ShowTransientMessageAsync("Add your Gemini API key in .env").ConfigureAwait(true);
+            await ShowTransientMessageAsync("Add your Gemini API key in .env", hideWhenDone).ConfigureAwait(true);
             return;
         }
 
@@ -317,7 +344,7 @@ public partial class OverlayWindow : Window
             System.Diagnostics.Debug.WriteLine($"[VoiceCtrl] Transcription error: {ex}");
             SimpleFileLogger.LogError("Transcription", ex);
             SimpleFileLogger.LogInfo($"Pipeline failed at transcribe after {pipelineStopwatch.ElapsedMilliseconds - stopElapsedMs}ms");
-            await ShowTransientMessageAsync("Transcription failed").ConfigureAwait(true);
+            await ShowTransientMessageAsync("Transcription failed", hideWhenDone).ConfigureAwait(true);
             return;
         }
         catch (HttpRequestException ex)
@@ -325,7 +352,7 @@ public partial class OverlayWindow : Window
             System.Diagnostics.Debug.WriteLine($"[VoiceCtrl] Network error: {ex}");
             SimpleFileLogger.LogError("Network", ex);
             SimpleFileLogger.LogInfo($"Pipeline failed at transcribe after {pipelineStopwatch.ElapsedMilliseconds - stopElapsedMs}ms");
-            await ShowTransientMessageAsync("No internet connection").ConfigureAwait(true);
+            await ShowTransientMessageAsync("No internet connection", hideWhenDone).ConfigureAwait(true);
             return;
         }
         catch (TaskCanceledException ex)
@@ -333,7 +360,7 @@ public partial class OverlayWindow : Window
             System.Diagnostics.Debug.WriteLine($"[VoiceCtrl] Request timed out: {ex}");
             SimpleFileLogger.LogError("Timeout", ex);
             SimpleFileLogger.LogInfo($"Pipeline failed at transcribe after {pipelineStopwatch.ElapsedMilliseconds - stopElapsedMs}ms");
-            await ShowTransientMessageAsync("Request timed out").ConfigureAwait(true);
+            await ShowTransientMessageAsync("Request timed out", hideWhenDone).ConfigureAwait(true);
             return;
         }
 
@@ -341,7 +368,7 @@ public partial class OverlayWindow : Window
 
         if (text is null)
         {
-            await ShowTransientMessageAsync("No speech detected").ConfigureAwait(true);
+            await ShowTransientMessageAsync("No speech detected", hideWhenDone).ConfigureAwait(true);
             return;
         }
 
@@ -359,37 +386,47 @@ public partial class OverlayWindow : Window
         switch (result)
         {
             case InjectionResult.ClipboardOnlyElevatedTarget:
-                await ShowTransientMessageAsync("Copied. Press Ctrl+V (elevated window)").ConfigureAwait(true);
+                await ShowTransientMessageAsync("Copied. Press Ctrl+V (elevated window)", hideWhenDone).ConfigureAwait(true);
                 break;
 
             case InjectionResult.Failed:
                 // Names the recovery rather than just reporting the failure, since the whole point
                 // of keeping the text is that the user knows where to go and get it.
-                await ShowTransientMessageAsync("Paste failed. Tray: Copy last transcription").ConfigureAwait(true);
+                await ShowTransientMessageAsync("Paste failed. Tray: Copy last transcription", hideWhenDone).ConfigureAwait(true);
                 break;
 
             default:
                 _state.Reset();
-                Hide();
+                UpdateVisualState();
+                if (hideWhenDone)
+                {
+                    Hide();
+                }
                 break;
         }
     }
 
     /// <summary>
-    /// Shows a message on the bar, then hides it. Callers must already hold the state machine's
-    /// transition gate for the whole call: the auto-hide runs after an await, and if a new
-    /// recording were allowed to start in the meantime, this method's Hide() would kill it.
+    /// Shows a message on the bar, then clears it back to idle. The bar itself is already visible
+    /// by the time this runs (only reachable mid-pipeline), so no Show() is needed — only
+    /// <paramref name="hideWhenDone"/> callers (the double-tap-mid-recording path) hide it once
+    /// the message clears. Callers must already hold the state machine's transition gate for the
+    /// whole call: the clear runs after an await, and if a new recording were allowed to start in
+    /// the meantime, this method's Reset() would stomp on it.
     /// </summary>
-    private async Task ShowTransientMessageAsync(string message)
+    private async Task ShowTransientMessageAsync(string message, bool hideWhenDone = false)
     {
         _state.SetError(message);
-        ShowBar();
+        UpdateVisualState();
 
         await Task.Delay(_config.AutoHideDelayMs).ConfigureAwait(true);
 
         _state.Reset();
         UpdateVisualState();
-        Hide();
+        if (hideWhenDone)
+        {
+            Hide();
+        }
     }
 
     private void UpdateVisualState()
