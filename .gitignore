@@ -6,3 +6,5 @@ publish/
 .vs/
 .serena/
 .scratch/
+AGENTS.md
+docs/agents/
