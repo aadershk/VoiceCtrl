@@ -120,4 +120,49 @@ public class SnippetTableTests
         SnippetTable table = SnippetTable.Parse(["brb = be right back"]);
         Assert.Equal(string.Empty, table.Expand(string.Empty));
     }
+
+    [Fact]
+    public void ExtractHeader_StopsAtFirstSnippetLine()
+    {
+        string header = SnippetTable.ExtractHeader("# a comment\n\nbrb = be right back");
+        Assert.Equal("# a comment\n\n", header);
+    }
+
+    [Fact]
+    public void ExtractHeader_EntireSeedFileIsHeader()
+    {
+        // Every line in the shipped seed is commented out, so a Hub save on a never-touched file
+        // must carry the whole thing forward rather than truncating it.
+        string header = SnippetTable.ExtractHeader(SnippetTable.SeedContents);
+        string normalizedSeed = SnippetTable.SeedContents.Replace("\r\n", "\n").TrimEnd('\n') + "\n";
+        Assert.Equal(normalizedSeed, header);
+    }
+
+    [Fact]
+    public void ExtractHeader_NoLeadingComments_ReturnsEmpty()
+    {
+        Assert.Equal(string.Empty, SnippetTable.ExtractHeader("brb = be right back"));
+    }
+
+    [Fact]
+    public void Format_RoundTripsThroughParse_IncludingALineBreakInTheExpansion()
+    {
+        string header = SnippetTable.ExtractHeader(SnippetTable.SeedContents);
+        KeyValuePair<string, string>[] snippets =
+        [
+            new("brb", "be right back"),
+            new("signoff", "Kind regards,\nAadersh"),
+        ];
+
+        string formatted = SnippetTable.Format(header, snippets);
+
+        Assert.Equal(header, SnippetTable.ExtractHeader(formatted));
+        Assert.Equal(snippets, SnippetTable.Parse(formatted.Split('\n')).Snippets.ToArray());
+    }
+
+    [Fact]
+    public void Format_NoSnippets_OmitsTrailingNewlineAfterHeader()
+    {
+        Assert.Equal("# header\n", SnippetTable.Format("# header\n", []));
+    }
 }

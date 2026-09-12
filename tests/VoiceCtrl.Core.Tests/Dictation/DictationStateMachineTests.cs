@@ -84,63 +84,8 @@ public class DictationStateMachineTests
         Assert.Equal(DictationAction.Start, machine.RequestToggle());
     }
 
-    [Fact]
-    public void CancelWhileRecording_IsAccepted()
-    {
-        DictationStateMachine machine = Recording();
-
-        Assert.True(machine.RequestCancel());
-    }
-
-    [Fact]
-    public void CancelWhenIdle_IsRejected()
-    {
-        var machine = new DictationStateMachine();
-
-        Assert.False(machine.RequestCancel());
-    }
-
-    [Fact]
-    public void CancelWhileProcessing_IsRejected()
-    {
-        DictationStateMachine machine = Recording();
-        machine.RequestToggle();
-        machine.SetProcessing();
-
-        Assert.False(machine.RequestCancel());
-    }
-
-    [Fact]
-    public void SecondCancelBeforeTheFirstFinishes_IsRejected()
-    {
-        DictationStateMachine machine = Recording();
-
-        Assert.True(machine.RequestCancel());
-        Assert.False(machine.RequestCancel());
-    }
-
-    [Fact]
-    public void ToggleDuringACancel_IsIgnored()
-    {
-        DictationStateMachine machine = Recording();
-        machine.RequestCancel();
-
-        Assert.Equal(DictationAction.None, machine.RequestToggle());
-    }
-
-    [Fact]
-    public void ToggleAfterACancelCompletes_StartsAgain()
-    {
-        DictationStateMachine machine = Recording();
-        machine.RequestCancel();
-        machine.Reset();
-        machine.EndTransition();
-
-        Assert.Equal(DictationAction.Start, machine.RequestToggle());
-    }
-
-    // IsRecording is what the keyboard hook reads on every Escape press, so it has to be false
-    // for anything other than a settled recording, including mid-start and mid-cancel.
+    // IsRecording gates ToggleBarVisibility's stop-before-hide behavior, so it has to be false
+    // for anything other than a settled recording, including mid-start and mid-stop.
     [Fact]
     public void IsRecording_IsTrueOnlyForASettledRecording()
     {
@@ -156,8 +101,34 @@ public class DictationStateMachineTests
         machine.EndTransition();
         Assert.True(machine.IsRecording);
 
-        machine.RequestCancel();
+        machine.RequestToggle();
         Assert.False(machine.IsRecording);
+    }
+
+    [Fact]
+    public void RequestStart_FromIdle_Claims()
+    {
+        var machine = new DictationStateMachine();
+
+        Assert.True(machine.RequestStart());
+        Assert.True(machine.IsTransitioning);
+    }
+
+    [Fact]
+    public void RequestStart_WhileRecording_Refuses()
+    {
+        DictationStateMachine machine = Recording();
+
+        Assert.False(machine.RequestStart());
+    }
+
+    [Fact]
+    public void RequestStart_WhileAlreadyTransitioning_Refuses()
+    {
+        var machine = new DictationStateMachine();
+        machine.RequestToggle();
+
+        Assert.False(machine.RequestStart());
     }
 
     [Fact]

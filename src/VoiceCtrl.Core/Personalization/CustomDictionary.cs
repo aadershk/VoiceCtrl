@@ -35,6 +35,37 @@ public static class CustomDictionary
         # PostgreSQL
         """;
 
+    /// <summary>
+    /// The file's leading run of comment/blank lines, verbatim, terminated by a trailing newline
+    /// (empty string if the file has none). A GUI editor that rewrites the file via <see cref="Format"/>
+    /// carries this forward so a user's own header commentary, or the seed file's explanatory
+    /// comments, survives edits made through the Hub rather than only through Notepad.
+    /// </summary>
+    public static string ExtractHeader(string contents)
+    {
+        var headerLines = new List<string>();
+
+        foreach (string rawLine in contents.Split('\n'))
+        {
+            string line = rawLine.TrimEnd('\r');
+            string trimmed = line.Trim();
+            if (trimmed.Length == 0 || trimmed.StartsWith('#'))
+            {
+                headerLines.Add(line);
+                continue;
+            }
+
+            break;
+        }
+
+        return headerLines.Count == 0 ? string.Empty : string.Join('\n', headerLines) + "\n";
+    }
+
+    /// <summary>Renders <paramref name="header"/> (from <see cref="ExtractHeader"/>) followed by one
+    /// term per line, the inverse of reading a file's header then <see cref="Parse"/>-ing its terms.</summary>
+    public static string Format(string header, IReadOnlyList<string> terms) =>
+        header + string.Join('\n', terms) + (terms.Count > 0 ? "\n" : string.Empty);
+
     public static IReadOnlyList<string> Parse(IEnumerable<string> lines)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

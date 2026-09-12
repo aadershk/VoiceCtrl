@@ -1,0 +1,14 @@
+<UserControl x:Class="VoiceCtrl.Hub.Controls.FeatherIcon"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Viewbox x:Name="Root" Stretch="Uniform">
+        <Path x:Name="IconPath"
+              Width="24" Height="24"
+              Stretch="None"
+              StrokeThickness="1.8"
+              StrokeStartLineCap="Round"
+              StrokeEndLineCap="Round"
+              StrokeLineJoin="Round"
+              SnapsToDevicePixels="True"/>
+    </Viewbox>
+</UserControl>

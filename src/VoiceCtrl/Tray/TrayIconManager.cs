@@ -34,6 +34,7 @@ public sealed class TrayIconManager : IDisposable
     private readonly LastTranscriptionStore _lastTranscription;
     private readonly Dictionary<TranscriptionModePreference, MenuItem> _modeMenuItems = [];
 
+    public event Action? HubRequested;
     public event Action? SettingsRequested;
     public event Action? QuitRequested;
 
@@ -50,6 +51,9 @@ public sealed class TrayIconManager : IDisposable
     {
         _modeStore = modeStore;
         _lastTranscription = lastTranscription;
+
+        var hubItem = new MenuItem { Header = "Open Hub..." };
+        hubItem.Click += (_, _) => HubRequested?.Invoke();
 
         _pauseMenuItem = new MenuItem { Header = "Pause" };
         _pauseMenuItem.Click += (_, _) => TogglePause();
@@ -86,6 +90,7 @@ public sealed class TrayIconManager : IDisposable
         quitItem.Click += (_, _) => QuitRequested?.Invoke();
 
         var menu = new ContextMenu();
+        menu.Items.Add(hubItem);
         menu.Items.Add(_pauseMenuItem);
         menu.Items.Add(modeMenu);
         menu.Items.Add(new Separator());

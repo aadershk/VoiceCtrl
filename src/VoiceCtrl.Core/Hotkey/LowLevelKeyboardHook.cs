@@ -1,38 +1,90 @@
 using System.Runtime.InteropServices;
+using System.Windows.Threading;
 using VoiceCtrl.Core.Interop;
 
 namespace VoiceCtrl.Core.Hotkey;
 
 /// <summary>
-/// Installs a WH_KEYBOARD_LL hook tracking Left and Right Ctrl double-taps. Must be installed
-/// from a thread that runs a Win32 message loop (the WPF Dispatcher thread qualifies).
+/// Installs a WH_KEYBOARD_LL hook tracking the configured Hotkey's double-tap and, when enabled,
+/// the Trigger Key's Tap/Hold gesture (single key or chord). Must be installed from a thread that
+/// runs a Win32 message loop (the WPF Dispatcher thread qualifies) — the Trigger Key's hold
+/// detection also needs that thread's Dispatcher for its threshold timer, since nothing else can
+/// tell "a quick tap" from "the start of a hold" without one (see <see cref="TriggerKeyTracker"/>).
 /// </summary>
 public sealed class LowLevelKeyboardHook : IDisposable
 {
+    /// <summary>How long the Trigger Key must stay down before it counts as Hold rather than Tap.
+    /// Not user-configurable — ticket 03/its Addendum fixed the gesture model but left this
+    /// internal timing to implementation judgment. Short enough that Hold-to-Talk still feels
+    /// immediate, long enough that a deliberate quick tap is never misread as the start of a hold.
+    /// </summary>
+    private const long TriggerHoldThresholdMs = 200;
+
     // Kept as a field, not a local/lambda: if this delegate were GC-eligible while native
     // code still held the function pointer, the hook would break unpredictably at collection.
     private readonly NativeMethods.LowLevelKeyboardProc _proc;
-    private readonly CtrlKeyTracker _tracker;
+    private readonly CtrlKeyTracker _hotkeyTracker;
+    private readonly TriggerKeyTracker? _triggerTracker;
+    private readonly DispatcherTimer? _triggerHoldTimer;
     private IntPtr _hookHandle = IntPtr.Zero;
 
     public event Action? DoubleTapDetected
     {
-        add => _tracker.DoubleTapDetected += value;
-        remove => _tracker.DoubleTapDetected -= value;
+        add => _hotkeyTracker.DoubleTapDetected += value;
+        remove => _hotkeyTracker.DoubleTapDetected -= value;
     }
 
-    /// <summary>
-    /// Raised on every real Escape keydown, anywhere in Windows. Deliberately unfiltered here:
-    /// this class has no idea whether a dictation is running, so it reports the key and lets the
-    /// subscriber decide. The subscriber's check must therefore be cheap, since this fires for
-    /// every Esc the user ever presses. Escape is never swallowed, see <see cref="HookCallback"/>.
-    /// </summary>
-    public event Action? CancelRequested;
+    /// <summary>Raised on a quick Trigger Key press+release (or a completed chord tap). No-op to
+    /// subscribe to when the Trigger Key is off — it simply never fires.</summary>
+    public event Action? TriggerTapped
+    {
+        add { if (_triggerTracker is not null) _triggerTracker.Tapped += value; }
+        remove { if (_triggerTracker is not null) _triggerTracker.Tapped -= value; }
+    }
 
-    public LowLevelKeyboardHook(int doubleTapWindowMs)
+    /// <summary>Raised once the Trigger Key (or chord) has been held past the hold threshold.</summary>
+    public event Action? TriggerHoldStarted
+    {
+        add { if (_triggerTracker is not null) _triggerTracker.HoldStarted += value; }
+        remove { if (_triggerTracker is not null) _triggerTracker.HoldStarted -= value; }
+    }
+
+    /// <summary>Raised when a held Trigger Key (or chord) is released.</summary>
+    public event Action? TriggerHoldEnded
+    {
+        add { if (_triggerTracker is not null) _triggerTracker.HoldEnded += value; }
+        remove { if (_triggerTracker is not null) _triggerTracker.HoldEnded -= value; }
+    }
+
+    public LowLevelKeyboardHook(int doubleTapWindowMs, HotkeySettings hotkeySettings)
     {
         _proc = HookCallback;
-        _tracker = new CtrlKeyTracker(doubleTapWindowMs, [NativeMethods.VK_LCONTROL, NativeMethods.VK_RCONTROL]);
+        _hotkeyTracker = new CtrlKeyTracker(doubleTapWindowMs, HotkeyKeyCatalog.ResolveVkCodes(hotkeySettings.HotkeyKey));
+
+        if (hotkeySettings.IsTriggerReady)
+        {
+            (int primaryVk, int? secondVk) = ResolveTriggerVks(hotkeySettings);
+            _triggerTracker = new TriggerKeyTracker(primaryVk, secondVk, TriggerHoldThresholdMs);
+            _triggerHoldTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(TriggerHoldThresholdMs) };
+            _triggerHoldTimer.Tick += (_, _) =>
+            {
+                _triggerHoldTimer.Stop();
+                _triggerTracker.CheckHoldThreshold(Environment.TickCount64);
+            };
+        }
+    }
+
+    private static (int PrimaryVk, int? SecondVk) ResolveTriggerVks(HotkeySettings settings)
+    {
+        if (settings.TriggerMode == HotkeySettings.TriggerModeChord)
+        {
+            // Both guaranteed non-null here: HotkeySettings.IsTriggerReady already checked this.
+            int prefixVk = HotkeyKeyCatalog.ResolveVkCodes(settings.ChordPrefix!)[0];
+            return (prefixVk, settings.ChordSecondKeyVk!.Value);
+        }
+
+        int keyVk = HotkeyKeyCatalog.ResolveVkCodes(settings.TriggerKey!)[0];
+        return (keyVk, null);
     }
 
     public void Install()
@@ -62,31 +114,25 @@ public sealed class LowLevelKeyboardHook : IDisposable
         {
             var data = Marshal.PtrToStructure<NativeMethods.KBDLLHOOKSTRUCT>(lParam);
 
-            // Filtering LLKHF_INJECTED runs before any VK-specific logic, for the exact-match and
-            // Bluetooth-fallback resolution alike. It's what stops our own synthetic Ctrl+V paste
-            // (sent with VK_LCONTROL) from ever being misread as a Left-Ctrl hotkey tap. Now the
-            // only thing that does, since VK identity alone no longer separates "our own paste"
-            // from "a real Left-Ctrl press" the way it did when only Right Ctrl was tracked.
+            // Filtering LLKHF_INJECTED runs before any VK-specific logic. It's what stops our own
+            // synthetic Ctrl+V paste (sent with VK_LCONTROL) from ever being misread as a real
+            // Left-Ctrl press, and does the same for whatever key the Hotkey/Trigger Key happen to
+            // be configured to.
             if ((data.flags & NativeMethods.LLKHF_INJECTED) == 0)
             {
                 int message = wParam.ToInt32();
-                int? trackedVk = TrackedCtrlKeyResolver.Resolve(data.vkCode, data.flags);
+                int normalizedVk = PhysicalKeyResolver.Normalize(data.vkCode, data.flags);
+                long now = Environment.TickCount64;
 
                 if (message is NativeMethods.WM_KEYDOWN or NativeMethods.WM_SYSKEYDOWN)
                 {
-                    if (data.vkCode == NativeMethods.VK_ESCAPE)
-                    {
-                        CancelRequested?.Invoke();
-                    }
-
-                    // Still reported to the tracker afterwards, and as an untracked key: Escape
-                    // pressed while a Ctrl is held is Ctrl+Esc (the Start menu), which has to
-                    // poison that Ctrl the same as any other chord would.
-                    _tracker.OnKeyDown(trackedVk, Environment.TickCount64);
+                    _hotkeyTracker.OnKeyDown(normalizedVk, now);
+                    HandleTriggerKeyDown(normalizedVk, now);
                 }
                 else if (message is NativeMethods.WM_KEYUP or NativeMethods.WM_SYSKEYUP)
                 {
-                    _tracker.OnKeyUp(trackedVk);
+                    _hotkeyTracker.OnKeyUp(normalizedVk);
+                    HandleTriggerKeyUp(normalizedVk, now);
                 }
             }
         }
@@ -94,8 +140,38 @@ public sealed class LowLevelKeyboardHook : IDisposable
         return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
     }
 
+    private void HandleTriggerKeyDown(int vk, long now)
+    {
+        if (_triggerTracker is null)
+        {
+            return;
+        }
+
+        bool wasEngaged = _triggerTracker.IsEngaged;
+        _triggerTracker.OnKeyDown(vk, now);
+
+        if (!wasEngaged && _triggerTracker.IsEngaged)
+        {
+            _triggerHoldTimer!.Stop();
+            _triggerHoldTimer.Start();
+        }
+    }
+
+    private void HandleTriggerKeyUp(int vk, long now)
+    {
+        if (_triggerTracker is null)
+        {
+            return;
+        }
+
+        _triggerTracker.OnKeyUp(vk, now);
+        _triggerHoldTimer!.Stop();
+    }
+
     public void Dispose()
     {
+        _triggerHoldTimer?.Stop();
+
         if (_hookHandle != IntPtr.Zero)
         {
             NativeMethods.UnhookWindowsHookEx(_hookHandle);

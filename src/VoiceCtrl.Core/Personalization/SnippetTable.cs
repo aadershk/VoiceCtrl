@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace VoiceCtrl.Core.Personalization;
@@ -44,6 +45,41 @@ public sealed class SnippetTable
 
         _triggerPattern = snippets.Count == 0 ? null : BuildTriggerPattern(snippets);
     }
+
+    /// <summary>
+    /// The file's leading run of comment/blank lines, verbatim, terminated by a trailing newline
+    /// (empty string if the file has none). Mirrors <see cref="CustomDictionary.ExtractHeader"/> so
+    /// a GUI editor that rewrites the file via <see cref="Format"/> carries a user's own header
+    /// commentary, or the seed file's explanatory comments, forward across an edit made through the
+    /// Hub rather than only through Notepad.
+    /// </summary>
+    public static string ExtractHeader(string contents)
+    {
+        var headerLines = new List<string>();
+
+        foreach (string rawLine in contents.Split('\n'))
+        {
+            string line = rawLine.TrimEnd('\r');
+            string trimmed = line.Trim();
+            if (trimmed.Length == 0 || trimmed.StartsWith('#'))
+            {
+                headerLines.Add(line);
+                continue;
+            }
+
+            break;
+        }
+
+        return headerLines.Count == 0 ? string.Empty : string.Join('\n', headerLines) + "\n";
+    }
+
+    /// <summary>Renders <paramref name="header"/> (from <see cref="ExtractHeader"/>) followed by one
+    /// "trigger = expansion" line per snippet, re-escaping a real line break back to the literal
+    /// "\n" that <see cref="Parse"/> reads — the inverse of reading a file's header then
+    /// <see cref="Parse"/>-ing its snippets.</summary>
+    public static string Format(string header, IReadOnlyList<KeyValuePair<string, string>> snippets) =>
+        header + string.Join('\n', snippets.Select(snippet => $"{snippet.Key} = {snippet.Value.Replace("\n", "\\n")}"))
+               + (snippets.Count > 0 ? "\n" : string.Empty);
 
     public static SnippetTable Parse(IEnumerable<string> lines)
     {

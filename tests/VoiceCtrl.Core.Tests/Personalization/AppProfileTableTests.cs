@@ -135,4 +135,78 @@ public class AppProfileTableTests
     {
         Assert.Equal(0, AppProfileTable.Parse(contents).Count);
     }
+
+    [Fact]
+    public void Entries_AreAlphabeticalByProcessName_RegardlessOfFileOrder()
+    {
+        AppProfileTable table = AppProfileTable.Parse("""
+            { "slack": { "tone": "casual" }, "code": { "tone": "terse" } }
+            """);
+
+        Assert.Equal(["code", "slack"], table.Entries.Select(entry => entry.Key));
+    }
+
+    [Fact]
+    public void ExtractComment_ReadsTheCommentArray()
+    {
+        IReadOnlyList<string> comment = AppProfileTable.ExtractComment(AppProfileTable.SeedContents);
+
+        Assert.NotEmpty(comment);
+        Assert.Contains(comment, line => line.Contains("Per-app dictation overrides"));
+    }
+
+    [Fact]
+    public void ExtractComment_NoCommentProperty_ReturnsEmpty()
+    {
+        Assert.Empty(AppProfileTable.ExtractComment("""{ "slack": { "tone": "casual" } }"""));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not json")]
+    public void ExtractComment_InvalidJson_ReturnsEmpty(string json)
+    {
+        Assert.Empty(AppProfileTable.ExtractComment(json));
+    }
+
+    [Fact]
+    public void Format_RoundTripsThroughParse_PreservingEveryField()
+    {
+        IReadOnlyList<string> comment = AppProfileTable.ExtractComment(AppProfileTable.SeedContents);
+        KeyValuePair<string, AppProfile>[] entries =
+        [
+            new("code", new AppProfile { Tone = "terse", Formatting = "structured", Cleanup = "aggressive", Instructions = "preserve casing" }),
+            new("slack", new AppProfile { Tone = "casual" }),
+        ];
+
+        string formatted = AppProfileTable.Format(comment, entries);
+        AppProfileTable reparsed = AppProfileTable.Parse(formatted);
+
+        Assert.Equal(comment, AppProfileTable.ExtractComment(formatted));
+        Assert.Equal("terse", reparsed.Resolve("code")?.Tone);
+        Assert.Equal("structured", reparsed.Resolve("code")?.Formatting);
+        Assert.Equal("aggressive", reparsed.Resolve("code")?.Cleanup);
+        Assert.Equal("preserve casing", reparsed.Resolve("code")?.Instructions);
+        Assert.Equal("casual", reparsed.Resolve("slack")?.Tone);
+    }
+
+    [Fact]
+    public void Format_UnsetFields_AreOmittedRatherThanWrittenAsNull()
+    {
+        // A field written as an explicit JSON null would still deserialize back to the same null,
+        // but leaving it out entirely is what keeps a hand-edited file's own field ordering intact
+        // and matches how CustomDictionary/SnippetTable's Format functions never restate absence.
+        string formatted = AppProfileTable.Format([], [new("slack", new AppProfile { Tone = "casual" })]);
+
+        Assert.DoesNotContain("null", formatted);
+        Assert.DoesNotContain("formatting", formatted, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Format_NoComment_OmitsTheCommentProperty()
+    {
+        string formatted = AppProfileTable.Format([], [new("slack", new AppProfile { Tone = "casual" })]);
+
+        Assert.DoesNotContain("_comment", formatted);
+    }
 }

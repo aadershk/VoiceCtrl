@@ -27,6 +27,14 @@ public static class UserDataPaths
     /// <summary>Per-application tone/formatting overrides, keyed by process name.</summary>
     public static string Profiles => Path.Combine(Root, "profiles.json");
 
+    /// <summary>The last ~50 Dictations (text and timestamp only, never audio) backing the Hub's
+    /// Dictations screen.</summary>
+    public static string History => Path.Combine(Root, "history.json");
+
+    /// <summary>The Hotkey and Trigger Key bindings, edited only through the Hub's Settings
+    /// screen. Applies on the next restart; see <see cref="VoiceCtrl.Core.Hotkey.HotkeySettings"/>.</summary>
+    public static string Hotkey => Path.Combine(Root, "hotkey.json");
+
     /// <summary>
     /// Creates a user-editable file with starter content if it does not exist yet, and returns the
     /// path either way. Never overwrites: the file is the user's, and losing their dictionary to a

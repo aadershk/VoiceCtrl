@@ -162,26 +162,6 @@ public sealed class WasapiAudioRecorder : IDisposable
         return new AudioClip(resampledWavBytes, duration);
     }
 
-    /// <summary>
-    /// Stops recording and throws the audio away. Separate from <see cref="StopAsync"/> rather
-    /// than a flag on it, because the expensive part of stopping is the resample, and a cancelled
-    /// clip is never transcribed: skipping it makes Escape feel instant even on a long recording.
-    /// Safe to call when not recording, since the point of a cancel is to reach a known-idle state.
-    /// </summary>
-    public async Task DiscardAsync()
-    {
-        if (!IsRecording || _capture is null || _stoppedTcs is null)
-        {
-            return;
-        }
-
-        _capture.StopRecording();
-        await _stoppedTcs.Task.ConfigureAwait(true);
-
-        CleanupCaptureResources();
-        IsRecording = false;
-    }
-
     private static byte[] ResampleTo16BitMono16k(byte[] rawWavBytes, WaveFormat rawFormat)
     {
         var targetFormat = new WaveFormat(TargetSampleRate, TargetBits, TargetChannels);

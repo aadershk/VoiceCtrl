@@ -1,67 +1,103 @@
 # VoiceCtrl
 
-A Windows voice dictation utility. Double-tap Ctrl anywhere, speak, double-tap again, and the cleaned-up transcription is pasted at your cursor in whatever application has focus. Press Esc to throw the recording away. The mouse never enters the loop.
+VoiceCtrl lets you talk instead of type. Tap a key twice, say what you want to write, tap it twice again, and the text appears wherever your cursor was, cleaned up and with filler words removed, in any program on your PC: Word, email, Slack, a browser, anything.
 
-Three transcription modes:
+It runs quietly in the background (you'll see a small icon near your clock) and only shows itself when you're dictating.
 
-- **Auto** (the default). Tries Gemini first, for the best accuracy and for self-correction handling, so "send it to John, actually no, Sarah" comes out as just "Sarah". Falls back to the offline model if there is no network or the request fails, and the overlay shows "Using offline mode" when that happens.
-- **Online**. Always uses Google Gemini. Needs your own free API key and an internet connection.
-- **Offline**. Runs entirely on your PC using a local speech model. No API key, no account, and no audio leaves your machine. It is CPU-only by design so it does not compete with your GPU. The first use downloads the model, roughly 650-700MB, once.
+## Before you install: a quick word on privacy
 
-Switch modes at any time from the tray icon, under **Mode**.
+- Your voice recordings are **never saved**. VoiceCtrl only keeps the *text* it produced, never the audio.
+- You can choose to run VoiceCtrl **fully offline** (see "Choosing how VoiceCtrl understands your speech" below), so nothing about what you say ever leaves your computer.
+- Everything you type into VoiceCtrl to personalize it (see "Making VoiceCtrl sound like you" below) stays on your own PC, in a folder Windows keeps for your user account.
 
-## Install
+## Installing VoiceCtrl
 
-1. Go to [Releases](../../releases) and download `VoiceCtrl-win-x64.zip`.
-2. Extract it anywhere and run `VoiceCtrl.exe`.
-3. Windows SmartScreen will most likely warn that "Windows protected your PC". This build is not code-signed, so click **More info**, then **Run anyway**.
-4. On first launch a setup window walks you through the rest. Pick **Online** or **Offline**: Online enables Auto mode (Gemini with offline fallback) and has a button that opens [Google AI Studio](https://aistudio.google.com/apikey) in your browser for a free API key — paste it back in and the window checks it for you on the spot, or you can skip and add one later. Offline shows a real progress bar while it downloads the ~700MB speech model, so you can see it is actually ready before you start dictating. Your choice is written to a local `.env` file next to the exe. Nothing is sent anywhere except your own Gemini API calls.
-5. The app adds itself to the Start Menu as **VoiceCtrl**, so you can launch it later by typing the name.
+1. Go to the [Releases page](../../releases) and download `VoiceCtrl-win-x64.zip`.
+2. Right-click the zip file and choose **Extract All...**, then pick a folder to put it in (your Desktop or Documents both work fine).
+3. Open that folder and double-click `VoiceCtrl.exe` to start it.
+4. Windows will probably show a blue box saying "Windows protected your PC". This is completely normal for a small app like this one that isn't from a big company. It's not a sign of a virus. Click **More info**, then **Run anyway**.
+5. The first time it runs, a short setup window appears and asks you one question: should VoiceCtrl understand your speech using the internet (Online) or entirely on your own PC (Offline)? Either answer is fine (see "Choosing how VoiceCtrl understands your speech" below if you're not sure), and you can always change your mind later. Follow the on-screen steps for whichever you pick.
+6. Once setup finishes, VoiceCtrl is ready. From now on, you can also open it by typing "VoiceCtrl" into the Windows search box (bottom-left of your screen), since the setup added it there for you.
 
-VoiceCtrl then runs from the system tray. Double-tap Ctrl anywhere to start dictating.
+## Updating to a newer version
 
-To change the API key later, edit `.env`. The tray icon's Settings entry opens it in Notepad; VoiceCtrl will prompt you to restart it once you save and close, since `.env` is only read on startup.
+**Short answer: no, you don't have to delete anything, and you won't lose your settings or your dictation history either way.**
 
-## Dictating
+Everything you've personally added to VoiceCtrl (your Dictionary words, Snippets, app Profiles, and the history of what you've dictated) is stored separately from the app itself, in a folder Windows manages for your account. That folder never gets touched by installing a new version, no matter how you do it.
 
-- **Start and stop.** Double-tap either Ctrl key. The bar opens already recording, and the mic circle tracks your voice level, so you can see that it is hearing you before you commit to a long sentence. Double-tap again to stop; the text is cleaned up and pasted where your cursor is.
-- **Cancel.** Press Esc while recording. The clip is discarded, nothing is transcribed and nothing is pasted. Esc still reaches whatever app you were in.
-- **Mouse.** Clicking the mic still starts and stops a recording, if you would rather.
-- **Nothing is ever lost.** The last transcription stays available from the tray under **Copy last transcription**, and if a paste fails or the target window is elevated, the text is left on your clipboard and the bar tells you to press Ctrl+V yourself.
+So when a new version comes out, you have two equally fine options:
 
-## Personalizing the output
+- **Extract the new zip into the same folder as before**, overwriting the old files. This is the tidiest option, since there's nothing left over afterwards.
+- **Extract the new zip into a brand new folder.** This also works perfectly, and your settings/history will be exactly as you left them. The only downside is the *old* folder and its `VoiceCtrl.exe` are still sitting on your hard drive, unused. They're harmless, but you may as well delete that old folder once you've confirmed the new one works, just to tidy up.
 
-Three files live in `%LOCALAPPDATA%\VoiceCtrl` and open from the tray icon under **Personalize**. Each is created with commented examples on first run, and each is re-read on the next dictation after you save it, so there is no restart and no settings dialog.
+Either way, **just open the new `VoiceCtrl.exe`. You don't need to close the old version first.** VoiceCtrl automatically notices an older copy is still running, closes it for you, and takes its place, so there's never a moment with two copies running or any doubt about which one you're looking at. The "VoiceCtrl" shortcut in your Windows search box also automatically points at whichever copy you last opened, so you don't need to fix anything there yourself.
 
-- **`dictionary.txt`.** Names, jargon and product spellings, one per line. Online mode passes them to the model as a spelling reference, so it can check a candidate against what it actually heard. Offline mode corrects the finished text against them, with a small edit budget that scales with the length of the term and a blocklist of common English words, so a near-miss is fixed and an ordinary word is never rewritten.
-- **`snippets.txt`.** Spoken shorthand, written as `trigger = expansion`. Say "my work email", get the address. Matching is case-insensitive and fires on whole phrases only, longest trigger first, in a single pass, so an expansion that happens to contain another trigger is never re-expanded.
-- **`profiles.json`.** Per-application overrides, keyed on the process name: `tone`, `formatting` (`structured`, `prose` or `none`), `cleanup` (`light`, `standard`, `aggressive`) and free-text `instructions`. Anything you leave out falls through to the built-in behaviour for that app, so you can correct one thing about one app without inheriting a frozen copy of everything else.
+## Everyday use
 
-## Spoken commands
+### The little bar (the "Overlay")
 
-- "new line" and "new paragraph" work in both modes. They are guarded against ordinary speech, so "we are entering a new line of business" stays one sentence.
-- Spoken punctuation ("comma", "period", "question mark") is handled by the model in Online mode. Offline it is off by default, behind `SPOKEN_PUNCTUATION=true` in `.env`, because those are ordinary English words and "the comma is missing" must not come out as "the , is missing".
+- **Double-tap the Ctrl key** (either one) anywhere, on any app, to bring up a small dark bar at the bottom of your screen. It starts recording right away, so just start talking.
+- **Double-tap Ctrl again** to stop. VoiceCtrl cleans up what you said (removing "um"s, fixing punctuation, etc.) and pastes it wherever your cursor is.
+- You can also just **click the bar** with your mouse to start/stop, if you'd rather not use the keyboard shortcut.
+- If a paste doesn't work for some reason (this can happen in certain secured windows), your words are automatically saved to your clipboard instead, and the bar will tell you to press Ctrl+V yourself.
 
-## How it works
+### The VoiceCtrl window (the "Hub")
 
-- **Hotkey.** Double-tap either Ctrl key to start and to stop, Esc to cancel. There is no chord, because Fn is not reliably interceptable on Windows.
-- **Online transcription and cleanup.** One Gemini call transcribes the audio, drops mid-utterance corrections and retractions, removes filler words and fixes punctuation, all in a single pass. Your dictionary and the active app's profile ride along in the same request.
-- **Offline transcription and cleanup.** A local Parakeet-TDT model, run through [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), transcribes the audio. A local pass then removes filler words, collapses repeats, applies the spoken line-break commands, repairs the punctuation left behind by the words it deleted, and fixes capitalization. Self-correction handling is not available here, since it needs instruction-following that an on-device ASR model does not have.
-- **Auto mode.** Every dictation tries Online first. If there is no network, or the Gemini request fails outright, that dictation falls back to the Offline path and the overlay shows "Using offline mode". Real API errors such as a bad key or an exhausted quota are surfaced rather than hidden.
-- **Injection.** The clipboard is saved, set to the transcribed text, pasted with a simulated Ctrl+V, then restored.
-- **Launcher.** A "VoiceCtrl" Start Menu shortcut carrying the app's own icon is created and refreshed on every launch, so it keeps pointing at the current exe after the app is moved or updated.
+A window titled **VoiceCtrl** opens automatically whenever you start the app. This is where you can review what you've said and customize how VoiceCtrl behaves. Closing this window does **not** close VoiceCtrl itself: it keeps running quietly in the background (see the tray icon below), and you can always reopen the window from there. It has five sections, listed down the left side:
 
-## Building from source
+- **Dictations**: a list of the last 50 things you've dictated (just the text and the time, never audio), so you can find something you said earlier, copy it again, or delete it. You can search using the box in the top right.
+- **Dictionary**: a list of names, brands, or unusual words that VoiceCtrl might otherwise mishear (e.g. your company's name, or a colleague's name). Add a word here once, and VoiceCtrl will get it right from then on.
+- **Snippets**: shortcuts for things you type often. For example, teach it that saying "my email" should type out your actual email address in full.
+- **Profiles**: lets you set a different writing style for specific programs. For example, you could make VoiceCtrl write more casually in a chat app and more formally in Word. **Note: this only affects the "Online" way of understanding your speech (see below); it has no effect when VoiceCtrl is working fully offline.**
+- **Settings**: where you configure the keyboard shortcuts and choose Online/Offline mode (see the next two sections).
+
+### The tray icon
+
+Look for the VoiceCtrl icon near your clock, in the row of small icons at the bottom-right of your screen (click the little upward arrow there if you don't see it right away). Right-click it for a menu with quick options: reopen the VoiceCtrl window, pause/resume the app, switch modes, open your Dictionary/Snippets/Profiles directly, or quit VoiceCtrl entirely.
+
+### Changing the keyboard shortcuts (optional)
+
+By default, double-tapping Ctrl is all you need. If you'd like more hands-free control, open the Hub, go to **Settings → Hotkey**, and turn on the optional **Trigger Key**. Once it's on, that key can also work as a "press and hold to talk, release to finish" shortcut, handy if you don't want to double-tap at all.
+
+**Important:** any change you make to these shortcuts only takes effect after you restart VoiceCtrl. To do that: right-click the tray icon, click **Quit**, then open VoiceCtrl again the same way you did the first time. The Settings screen will remind you of this whenever you make a change.
+
+## Choosing how VoiceCtrl understands your speech
+
+VoiceCtrl offers three ways to turn your voice into text. You can switch between them any time from the tray icon's **Mode** menu, or from **Settings → Transcription** in the Hub window.
+
+- **Auto (recommended, and the default).** Uses the internet for the best accuracy when you have a connection, and automatically switches to working offline if you don't. Most people should just leave this as-is.
+- **Online.** Always uses the internet (specifically Google's Gemini). This needs a free API key: a kind of password that lets VoiceCtrl use Google's service on your behalf. The setup steps walk you through getting one; it only takes a minute and doesn't cost anything for normal use.
+- **Offline.** Works entirely on your own PC, with nothing sent over the internet at all. The first time you use this, VoiceCtrl downloads a speech model (about 700MB, a one-time download) so it has everything it needs stored locally.
+
+You can add or change your Gemini API key at any time from **Settings → Transcription** in the Hub window (this used to require editing a technical file by hand, but it doesn't anymore). Changing the key requires a restart to take effect, the same as the shortcut changes above (right-click the tray icon → Quit, then reopen VoiceCtrl); the Settings screen will let you know when this applies.
+
+## Frequently asked questions
+
+**Do I need to close/uninstall the old version before installing a new one?**
+No. See "Updating to a newer version" above. Just run the new `VoiceCtrl.exe`; it closes the old one automatically and takes over. Your data is always safe either way.
+
+**Will I lose my Dictionary/Snippets/Profiles/history if I reinstall or move VoiceCtrl to a new folder?**
+No. All of that is stored in a Windows-managed folder for your user account, completely separate from wherever you put `VoiceCtrl.exe`.
+
+**Does VoiceCtrl record and store my voice?**
+No, never. Only the resulting text is ever kept, and only the last 50 things you've said are kept at all (visible in the Hub's Dictations section).
+
+**I changed the keyboard shortcut and it's not working.**
+You need to restart VoiceCtrl for shortcut changes to apply. Right-click the tray icon, click Quit, then reopen the app.
+
+## For anyone technical: building it yourself
+
+If you'd rather build VoiceCtrl from its source code instead of downloading the release:
 
 1. Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 2. Copy `.env.example` to `.env` and fill in a Gemini API key, or set `TRANSCRIPTION_MODE=Offline` to run without one.
 3. `dotnet run --project src\VoiceCtrl`
 
-`docs/design.md` covers the design and the implementation details.
+`docs/design.md` covers the design and implementation details in full technical depth.
 
-## Attribution
+## Credits
 
-Offline mode uses NVIDIA's [Parakeet-TDT-0.6B-v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) (CC-BY-4.0) through [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache-2.0). See `THIRD-PARTY-NOTICES.md`.
+Offline mode uses NVIDIA's [Parakeet-TDT-0.6B-v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) (CC-BY-4.0) through [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache-2.0). See `THIRD-PARTY-NOTICES.md` for full details.
 
 ## License
 

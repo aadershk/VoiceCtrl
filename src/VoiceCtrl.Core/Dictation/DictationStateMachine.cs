@@ -34,11 +34,11 @@ public sealed class DictationStateMachine
 
     public string? StatusMessage { get; private set; }
 
-    /// <summary>True while a start, stop or cancel that a caller claimed has not yet finished.</summary>
+    /// <summary>True while a start or stop that a caller claimed has not yet finished.</summary>
     public bool IsTransitioning { get; private set; }
 
-    /// <summary>Settled mid-recording, so a cancel is meaningful and a stop is worth running.
-    /// Read from the keyboard hook to decide whether an Esc press is even worth dispatching.</summary>
+    /// <summary>Settled mid-recording, so a stop is worth running rather than a no-op. Read when a
+    /// double-tap lands mid-recording, to decide whether to stop-and-paste before hiding.</summary>
     public bool IsRecording => State == DictationState.Recording && !IsTransitioning;
 
     /// <summary>
@@ -62,13 +62,14 @@ public sealed class DictationStateMachine
     }
 
     /// <summary>
-    /// Esc. Only meaningful mid-recording: anywhere else there is nothing left to throw away, and
-    /// cancelling a stop whose audio is already in flight would not un-send it. Claims the
-    /// transition on success so draining the recorder cannot race a new recording.
+    /// Claims the transition for a Trigger Key hold, which always means "start" and never toggles:
+    /// unlike <see cref="RequestToggle"/>, this refuses outright (rather than resolving to Stop)
+    /// if a Dictation is already running, since a hold beginning while one is somehow already in
+    /// flight is not something to stop, just nothing to do.
     /// </summary>
-    public bool RequestCancel()
+    public bool RequestStart()
     {
-        if (!IsRecording)
+        if (IsTransitioning || State != DictationState.Idle)
         {
             return false;
         }
@@ -102,9 +103,9 @@ public sealed class DictationStateMachine
     }
 
     /// <summary>
-    /// Releases the gate claimed by <see cref="RequestToggle"/> or <see cref="RequestCancel"/>.
-    /// Always call it from a finally: a leaked claim wedges the app into a state where no hotkey
-    /// does anything at all until the user restarts it.
+    /// Releases the gate claimed by <see cref="RequestToggle"/>. Always call it from a finally: a
+    /// leaked claim wedges the app into a state where no hotkey does anything at all until the
+    /// user restarts it.
     /// </summary>
     public void EndTransition() => IsTransitioning = false;
 }

@@ -66,4 +66,45 @@ public class CustomDictionaryTests
     {
         Assert.Empty(CustomDictionary.Parse([]));
     }
+
+    [Fact]
+    public void ExtractHeader_StopsAtFirstTermLine()
+    {
+        string header = CustomDictionary.ExtractHeader("# a comment\n\nSchiphol\nGrafana");
+        Assert.Equal("# a comment\n\n", header);
+    }
+
+    [Fact]
+    public void ExtractHeader_EntireSeedFileIsHeader()
+    {
+        // Every line in the shipped seed is commented out, so a Hub save on a never-touched file
+        // must carry the whole thing forward rather than truncating it.
+        string header = CustomDictionary.ExtractHeader(CustomDictionary.SeedContents);
+        string normalizedSeed = CustomDictionary.SeedContents.Replace("\r\n", "\n").TrimEnd('\n') + "\n";
+        Assert.Equal(normalizedSeed, header);
+    }
+
+    [Fact]
+    public void ExtractHeader_NoLeadingComments_ReturnsEmpty()
+    {
+        Assert.Equal(string.Empty, CustomDictionary.ExtractHeader("Schiphol\nGrafana"));
+    }
+
+    [Fact]
+    public void Format_RoundTripsThroughParse()
+    {
+        string header = CustomDictionary.ExtractHeader(CustomDictionary.SeedContents);
+        string[] terms = ["Schiphol", "Grafana"];
+
+        string formatted = CustomDictionary.Format(header, terms);
+
+        Assert.Equal(header, CustomDictionary.ExtractHeader(formatted));
+        Assert.Equal(terms, CustomDictionary.Parse(formatted.Split('\n')).ToArray());
+    }
+
+    [Fact]
+    public void Format_NoTerms_OmitsTrailingNewlineAfterHeader()
+    {
+        Assert.Equal("# header\n", CustomDictionary.Format("# header\n", []));
+    }
 }

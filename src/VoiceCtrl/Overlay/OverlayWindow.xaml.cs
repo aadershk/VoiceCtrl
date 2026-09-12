@@ -15,12 +15,34 @@ namespace VoiceCtrl.Overlay;
 
 public partial class OverlayWindow : Window
 {
-    private static readonly SolidColorBrush IdleBrush = new(Color.FromRgb(0x50, 0x50, 0x50));
-    private static readonly SolidColorBrush RecordingBrush = new(Color.FromRgb(0xE0, 0x40, 0x2A));
-    private static readonly SolidColorBrush ProcessingBrush = new(Color.FromRgb(0xC0, 0x8A, 0x2E));
+    // Edge Sliver palette (ticket 17), replacing the old "Pulse Pill" colors.
+    private static readonly SolidColorBrush IdleBrush = new(Color.FromRgb(0x8D, 0x93, 0xA3));
+    private static readonly SolidColorBrush RecordingBrush = new(Color.FromRgb(0xF0, 0x47, 0x2B));
+    private static readonly SolidColorBrush ProcessingBrush = new(Color.FromRgb(0xD9, 0xA4, 0x41));
+    private static readonly SolidColorBrush RecordingBarsBrush = new(Color.FromRgb(0xF0, 0xA9, 0x99));
+    private static readonly SolidColorBrush ProcessingBarsBrush = new(Color.FromArgb(0x99, 0xD9, 0xA4, 0x41));
 
-    /// <summary>How far the level halo grows at full scale. Bounded by the window: the mic area is
-    /// 48px inside a 96px window, so anything much past this clips against the border.</summary>
+    /// <summary>The sliver's min-width and padding at idle vs. Recording/Processing (ticket 17's
+    /// "widens 84px→128px on record"). Padding drives the widen, MinWidth is the floor once the
+    /// bars/mic content alone wouldn't reach it.</summary>
+    private const double SliverMinWidthIdle = 84;
+    private const double SliverMinWidthActive = 128;
+    private static readonly Thickness SliverPaddingIdle = new(14, 7, 14, 5);
+    private static readonly Thickness SliverPaddingActive = new(18, 9, 18, 7);
+
+    /// <summary>The 2px lift off the screen edge on Recording/Processing (ticket 17's answer).</summary>
+    private const double SliverLiftActive = -2;
+
+    /// <summary>Bar height at rest, and how much level growth can add on top, mirroring the
+    /// halo's <see cref="MaxLevelScale"/> growth but expressed as a height delta instead of a
+    /// scale factor. Per-bar weights give the four bars a staggered, waveform-like look rather
+    /// than moving in perfect lockstep, since only one aggregate level value is available.</summary>
+    private const double BarBaseHeight = 4;
+    private const double BarMaxGrowth = 10;
+    private static readonly double[] BarWeights = [0.6, 1.0, 0.8, 0.5];
+
+    /// <summary>How far the level halo grows at full scale. Bounded by the window: the mic dot is
+    /// 16px, so anything much past this reads as a soft glow rather than a second circle.</summary>
     private const double MaxLevelScale = 1.35;
 
     /// <summary>Share of the gap closed per update on the way down. The meter rises instantly so a
@@ -34,6 +56,7 @@ public partial class OverlayWindow : Window
     private readonly TranscriptionModeStore _modeStore;
     private readonly ITextInjector _textInjector;
     private readonly LastTranscriptionStore _lastTranscription;
+    private readonly DictationHistoryStore _history;
 
     private double _smoothedLevel;
     private float _pendingLevel;
@@ -44,9 +67,11 @@ public partial class OverlayWindow : Window
         ITranscriptionClient transcriptionClient,
         TranscriptionModeStore modeStore,
         ITextInjector textInjector,
-        LastTranscriptionStore lastTranscription)
+        LastTranscriptionStore lastTranscription,
+        DictationHistoryStore history)
     {
         _lastTranscription = lastTranscription;
+        _history = history;
         InitializeComponent();
         _config = config;
         _transcriptionClient = transcriptionClient;
@@ -54,10 +79,6 @@ public partial class OverlayWindow : Window
         _textInjector = textInjector;
         _recorder.LevelChanged += OnRecorderLevelChanged;
     }
-
-    /// <summary>Whether an Esc press is worth dispatching. Read directly from the keyboard hook
-    /// callback, which runs on this same UI thread, so no synchronisation is needed.</summary>
-    public bool IsRecording => _state.IsRecording;
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -106,7 +127,7 @@ public partial class OverlayWindow : Window
 
     /// <summary>
     /// The double-tap-hotkey entry point. Visibility is otherwise never changed by anything else
-    /// in this class: a successful paste, an error clearing, and Esc all settle back to an
+    /// in this class: a successful paste and an error clearing both settle back to an
     /// idle-but-visible bar, so this is the only gesture that makes it disappear. The one
     /// exception is a double-tap that lands mid-recording — there is no mic left to click once
     /// the bar is hidden, so it finishes the recording (stop/transcribe/paste) before hiding
@@ -129,14 +150,53 @@ public partial class OverlayWindow : Window
         Hide();
     }
 
-    /// <summary>Escape: abandon the recording and inject nothing. Safe to call at any time; it
-    /// does nothing unless a recording is actually running. Leaves the bar visible, idle — same
-    /// "only double-tap hides" rule as everywhere else.</summary>
-    public void CancelDictation()
+    /// <summary>
+    /// The Trigger Key's Tap entry point: does exactly what <see cref="ToggleRecording"/> does,
+    /// except it no-ops if the bar is hidden rather than assuming it is already visible — unlike a
+    /// mouse click on the mic, a Tap can land at any time, per ticket 03's answer ("No-op if the
+    /// bar is hidden").
+    /// </summary>
+    public void TriggerTap()
     {
-        if (_state.RequestCancel())
+        if (!IsVisible)
         {
-            _ = RunCancelAsync();
+            return;
+        }
+
+        ToggleRecording();
+    }
+
+    /// <summary>
+    /// The Trigger Key's Hold-start entry point: begins a Dictation immediately from any state,
+    /// skipping the double-tap-to-show step entirely, per ticket 03's answer. Shows the bar first
+    /// if it was hidden, so there is something on screen once <see cref="RunStartAsync"/> flips the
+    /// mic to recording.
+    /// </summary>
+    public void StartHandsFreeRecording()
+    {
+        if (!_state.RequestStart())
+        {
+            return;
+        }
+
+        if (!IsVisible)
+        {
+            ShowBar();
+        }
+
+        _ = RunStartAsync();
+    }
+
+    /// <summary>
+    /// The Trigger Key's Hold-release entry point: stops, transcribes, pastes, and hides the bar —
+    /// the same "finish then hide" path as a double-tap landing mid-recording (see
+    /// <see cref="ToggleBarVisibility"/>), since Hold-to-Talk has no separate cancel gesture either.
+    /// </summary>
+    public void StopHandsFreeRecording()
+    {
+        if (_state.IsRecording && _state.RequestToggle() == DictationAction.Stop)
+        {
+            _ = RunStopAsync(hideWhenDone: true);
         }
     }
 
@@ -220,26 +280,6 @@ public partial class OverlayWindow : Window
         }
     }
 
-    private async Task RunCancelAsync()
-    {
-        try
-        {
-            // Still has to be drained rather than just abandoned: the capture device stays open
-            // until StopRecording completes, and leaking it would make the next Start() fail.
-            await _recorder.DiscardAsync().ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            SimpleFileLogger.LogError("CancelDictation", ex);
-        }
-        finally
-        {
-            _state.Reset();
-            _state.EndTransition();
-            UpdateVisualState();
-        }
-    }
-
     /// <summary>
     /// Raised on the WASAPI capture thread. Coalescing rather than posting every sample keeps a
     /// busy dispatcher from accumulating a backlog of stale level updates that would then play
@@ -276,13 +316,21 @@ public partial class OverlayWindow : Window
         double scale = 1.0 + (_smoothedLevel * (MaxLevelScale - 1.0));
         LevelScale.ScaleX = scale;
         LevelScale.ScaleY = scale;
+
+        Bar1.Height = BarHeight(0);
+        Bar2.Height = BarHeight(1);
+        Bar3.Height = BarHeight(2);
+        Bar4.Height = BarHeight(3);
     }
+
+    private double BarHeight(int index) => BarBaseHeight + (_smoothedLevel * BarMaxGrowth * BarWeights[index]);
 
     private void ResetLevel()
     {
         _smoothedLevel = 0;
         LevelScale.ScaleX = 1.0;
         LevelScale.ScaleY = 1.0;
+        Bar1.Height = Bar2.Height = Bar3.Height = Bar4.Height = BarBaseHeight;
     }
 
     private void ShowBar()
@@ -291,14 +339,17 @@ public partial class OverlayWindow : Window
 
         // Width/Height are fixed in XAML (not SizeToContent), so the final position is known
         // before Show(), which avoids a show-then-jump flicker from positioning after layout.
-        Point pos = MonitorPositioner.GetBottomCenterPosition(Width, Height);
+        // bottomMarginDip: 0 is what makes this the Edge Sliver (ticket 17) rather than the old
+        // floating capsule — the window's bottom edge, and so the sliver's bottom edge, sits
+        // exactly on the work-area edge instead of hovering above it.
+        Point pos = MonitorPositioner.GetBottomCenterPosition(Width, Height, bottomMarginDip: 0);
         Left = pos.X;
         Top = pos.Y;
 
         Show();
     }
 
-    private void MicArea_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private void SliverBorder_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         ToggleRecording();
     }
@@ -375,6 +426,7 @@ public partial class OverlayWindow : Window
         // Recorded before the injection is attempted, not after it succeeds: the case worth
         // covering is precisely the one where the paste does not land where the user expected.
         _lastTranscription.Set(text);
+        _history.Add(text);
 
         InjectionResult result = await _textInjector.InjectAsync(text).ConfigureAwait(true);
         long injectElapsedMs = pipelineStopwatch.ElapsedMilliseconds;
@@ -437,6 +489,19 @@ public partial class OverlayWindow : Window
             DictationState.Processing => ProcessingBrush,
             _ => IdleBrush,
         };
+
+        Brush barBrush = _state.State switch
+        {
+            DictationState.Recording => RecordingBarsBrush,
+            DictationState.Processing => ProcessingBarsBrush,
+            _ => IdleBrush,
+        };
+        Bar1.Fill = Bar2.Fill = Bar3.Fill = Bar4.Fill = barBrush;
+
+        bool isActive = _state.State is DictationState.Recording or DictationState.Processing;
+        SliverBorder.MinWidth = isActive ? SliverMinWidthActive : SliverMinWidthIdle;
+        SliverBorder.Padding = isActive ? SliverPaddingActive : SliverPaddingIdle;
+        SliverLift.Y = isActive ? SliverLiftActive : 0;
 
         bool isRecording = _state.State == DictationState.Recording;
         LevelEllipse.Visibility = isRecording ? Visibility.Visible : Visibility.Hidden;
