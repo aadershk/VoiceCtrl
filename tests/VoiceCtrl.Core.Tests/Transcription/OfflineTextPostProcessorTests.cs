@@ -71,6 +71,20 @@ public class OfflineTextPostProcessorTests
         Assert.Equal("So, roll it out to staging first.", result);
     }
 
+    // Ticket 55: the recogniser sets a filler off with commas, so the comma left behind can split a
+    // phrase no comma belongs in ("Can you, do three things").
+    [Theory]
+    [InlineData("Can you, um, do three things for me.", "Can you do three things for me.")]
+    [InlineData("Could we, uh, move the call.", "Could we move the call.")]
+    [InlineData("I sent it to the, um, client.", "I sent it to the client.")]
+    [InlineData("We should, uh, ship it.", "We should ship it.")]
+    [InlineData("Hi Sarah, um, thanks for the deck.", "Hi Sarah, thanks for the deck.")]
+    [InlineData("Thank you, um, see you then.", "Thank you, see you then.")]
+    public void AFillersCommas_GoWhereNoCommaBelongs(string spoken, string expected)
+    {
+        Assert.Equal(expected, OfflineTextPostProcessor.Clean(spoken));
+    }
+
     [Fact]
     public void UtteranceOpeningWithAFiller_DoesNotStartOnAComma()
     {
@@ -90,6 +104,26 @@ public class OfflineTextPostProcessorTests
     {
         string result = OfflineTextPostProcessor.Clean("milk new line eggs");
         Assert.Equal("Milk\nEggs.", result);
+    }
+
+    // Wispr Flow's four line phrases (research 31, row 5), so a speaker who knows it can say any.
+    [Theory]
+    [InlineData("milk next line eggs", "Milk\nEggs.")]
+    [InlineData("milk line break eggs", "Milk\nEggs.")]
+    [InlineData("milk skip a line eggs", "Milk\n\nEggs.")]
+    public void TheOtherLinePhrases_BreakTheLineToo(string spoken, string expected)
+    {
+        Assert.Equal(expected, OfflineTextPostProcessor.Clean(spoken));
+    }
+
+    [Theory]
+    [InlineData("the next line of the file is wrong")]
+    [InlineData("we should not skip a line of defence here")]
+    [InlineData("a line break in the middle of a word is bad")]
+    [InlineData("my next line needs a fix")]
+    public void TheOtherLinePhrasesUsedAsOrdinaryEnglish_AreLeftAlone(string spoken)
+    {
+        Assert.DoesNotContain('\n', OfflineTextPostProcessor.Clean(spoken));
     }
 
     [Fact]

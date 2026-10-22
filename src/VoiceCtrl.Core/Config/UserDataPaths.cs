@@ -10,13 +10,46 @@ namespace VoiceCtrl.Core.Config;
 /// </summary>
 public static class UserDataPaths
 {
-    public static string Root { get; } = Path.Combine(
+    /// <summary>
+    /// The agent's sandbox harness (spec §10): a Debug build started with <c>VOICECTRL_DATA_ROOT</c>
+    /// keeps all its data there, so it never reads or writes the owner's real Dictations, settings
+    /// or key. Always null in a Release build, which ignores the variable.
+    /// </summary>
+    // Must stay above Root: static initializers run in textual order, and Root reads this one.
+    public static string? SandboxRoot { get; } = ReadSandboxRoot();
+
+    public static string Root { get; } = SandboxRoot ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "VoiceCtrl");
 
+    private static string? ReadSandboxRoot()
+    {
+#if DEBUG
+        return Environment.GetEnvironmentVariable("VOICECTRL_DATA_ROOT") is { Length: > 0 } root ? Path.GetFullPath(root) : null;
+#else
+        return null;
+#endif
+    }
+
+    /// <summary>The WebView2 user data folder (cache, local storage), shared by every surface.
+    /// Under the data root, never the install folder, which each update replaces.</summary>
+    public static string WebView2 => Path.Combine(Root, "webview2");
+
+    internal const string SettingsFileName = "settings.json";
+    internal const string SecretsFileName = "secrets.bin";
+
     public static string Log => Path.Combine(Root, "log.txt");
-    public static string Prefs => Path.Combine(Root, "prefs.json");
     public static string Models => Path.Combine(Root, "models");
+
+    /// <summary>Exists only while VoiceCtrl is starting; see <see cref="Updates.StartupMarker"/>.</summary>
+    public static string StartupMarker => Path.Combine(Root, "starting.json");
+
+    /// <summary>Every user-facing setting; see <see cref="SettingsStore"/>. v3's prefs.json,
+    /// theme.json and hotkey.json are only read once, by <see cref="V3Migration"/>.</summary>
+    public static string Settings => Path.Combine(Root, SettingsFileName);
+
+    /// <summary>The Gemini and TypeSafe keys, DPAPI-encrypted; see <see cref="SecretsStore"/>.</summary>
+    public static string Secrets => Path.Combine(Root, SecretsFileName);
 
     /// <summary>Proper nouns and jargon the speaker uses, one per line.</summary>
     public static string Dictionary => Path.Combine(Root, "dictionary.txt");
@@ -31,9 +64,12 @@ public static class UserDataPaths
     /// Dictations screen.</summary>
     public static string History => Path.Combine(Root, "history.json");
 
-    /// <summary>The Hotkey and Trigger Key bindings, edited only through the Hub's Settings
-    /// screen. Applies on the next restart; see <see cref="VoiceCtrl.Core.Hotkey.HotkeySettings"/>.</summary>
-    public static string Hotkey => Path.Combine(Root, "hotkey.json");
+    /// <summary>The engine record (VED-77): what the voice engine did per Dictation, no text. Exists
+    /// only while its Settings switch is on.</summary>
+    public static string EngineRecord => Path.Combine(Root, "engine-record.json");
+
+    /// <summary>Dictionary Suggestions the user ignored, one per line, so they never come back.</summary>
+    public static string IgnoredSuggestions => Path.Combine(Root, "suggestions-ignored.txt");
 
     /// <summary>
     /// Creates a user-editable file with starter content if it does not exist yet, and returns the

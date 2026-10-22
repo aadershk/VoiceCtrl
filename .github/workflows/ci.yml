@@ -1,0 +1,107 @@
+name: CI
+
+# The gate every slice merges through (VED-29, spec §10): the .NET job and, since the UI kit
+# slice (VED-32), the ui/ job. Packaging and release stay in release.yml.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dotnet:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      # The host build runs `npm ci` and `npm run build` in ui/ and copies the pages next to the
+      # exe (VoiceCtrl.csproj), so this job builds the app exactly as it ships.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Restore
+        run: dotnet restore VoiceCtrl.sln
+
+      # Warnings fail the build through Directory.Build.props (TreatWarningsAsErrors,
+      # AnalysisLevel latest) for every project, the WebView2 host included. The Core tests
+      # include the bridge-contract freshness test (ui/src/bridge/contracts.g.ts).
+      - name: Build (Release)
+        run: dotnet build VoiceCtrl.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test VoiceCtrl.sln -c Release --no-build
+
+      # `dotnet list package --vulnerable` reports hits but still exits 0, so its output decides.
+      - name: Vulnerable packages
+        shell: pwsh
+        run: |
+          $report = dotnet list VoiceCtrl.sln package --vulnerable --include-transitive 2>&1 | Out-String
+          Write-Output $report
+          if ($LASTEXITCODE -ne 0) { throw "dotnet list package failed (exit $LASTEXITCODE)" }
+          if ($report -match 'has the following vulnerable packages') {
+            throw 'Vulnerable NuGet packages found (see the report above).'
+          }
+
+  ui:
+    # Windows, so the Playwright baselines made on a dev PC (the `-win32` ones) are the ones CI
+    # compares against. The pages still run in plain Chromium on the mock bridge, not WebView2.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Install Chromium
+        run: npx playwright install chromium
+
+      - name: Visual tests
+        run: npm run test:visual
+
+      - name: Visual diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-visual-diffs
+          path: |
+            ui/test-results
+            ui/playwright-report
+          retention-days: 7
+
+      - name: Dependency audit
+        run: npm audit --omit=dev --audit-level=high

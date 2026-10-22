@@ -1,0 +1,494 @@
+iPhone
+iPad
+MacBook
+MacBook Pro
+MacBook Air
+iMac
+Mac Mini
+Mac Studio
+Apple Watch
+AirPods
+AirTag
+Apple TV
+HomePod
+Vision Pro
+Safari
+FaceTime
+iMessage
+iCloud
+Siri
+Pixel
+Nexus
+Chromebook
+Chromecast
+Nest
+Fitbit
+Garmin
+Whoop
+Oura
+Galaxy
+Galaxy Buds
+Surface
+Surface Pro
+Xbox
+PlayStation
+Nintendo
+Switch
+Wii
+Steam Deck
+Oculus
+Meta Quest
+Kindle
+Echo
+Alexa
+Ring
+Roku
+TiVo
+ThinkPad
+IdeaPad
+Legion
+Yoga
+XPS
+Latitude
+Inspiron
+Alienware
+Dell UltraSharp
+Pavilion
+EliteBook
+Spectre
+Envy
+Omen
+ZenBook
+ROG
+VivoBook
+Predator
+Aspire
+Swift
+Nitro
+MX Master
+Keychron
+Logitech
+Razer
+Corsair
+SteelSeries
+HyperX
+Anker
+Belkin
+Sennheiser
+Bose
+Sonos
+JBL
+Harman Kardon
+Bang and Olufsen
+Beats
+Shure
+Audio-Technica
+Sony WH
+Marshall
+Bowers and Wilkins
+Dolby
+Canon
+Nikon
+Fujifilm
+Olympus
+Leica
+Hasselblad
+GoPro
+DJI
+Insta360
+Epson
+Brother
+Xerox
+Kodak
+Polaroid
+Dyson
+Roomba
+iRobot
+Miele
+Bosch
+Siemens
+Philips
+Braun
+Nespresso
+Keurig
+Breville
+KitchenAid
+Vitamix
+Thermomix
+Instant Pot
+Tupperware
+Le Creuset
+Tefal
+Smeg
+Samsung
+LG
+Whirlpool
+Electrolux
+Haier
+Hisense
+TCL
+Vizio
+Ikea Billy
+Hemnes
+Malm
+Kallax
+Poang
+Ektorp
+Ikea
+Lego
+Duplo
+Playmobil
+Barbie
+Hot Wheels
+Nerf
+Hasbro
+Mattel
+Tamagotchi
+Pokemon
+Pikachu
+Mario
+Zelda
+Minecraft
+Fortnite
+Roblox
+Fifa
+Call of Duty
+Overwatch
+League of Legends
+Dota
+Counter-Strike
+Valorant
+Apex Legends
+World of Warcraft
+Diablo
+Starcraft
+Skyrim
+Elden Ring
+Witcher
+Cyberpunk
+Grand Theft Auto
+Red Dead
+Assassin's Creed
+Tetris
+Pac-Man
+Sonic
+Nike
+Adidas
+Puma
+Reebok
+New Balance
+Asics
+Brooks
+Hoka
+On Running
+Salomon
+Under Armour
+Lululemon
+Patagonia
+North Face
+Columbia
+Arc'teryx
+Canada Goose
+Moncler
+Barbour
+Burberry
+Gucci
+Prada
+Louis Vuitton
+Chanel
+Dior
+Hermes
+Versace
+Armani
+Dolce and Gabbana
+Balenciaga
+Fendi
+Givenchy
+Valentino
+Cartier
+Tiffany
+Rolex
+Omega
+Tag Heuer
+Swatch
+Casio
+Seiko
+Citizen
+Fossil
+Ray-Ban
+Oakley
+Levi's
+Wrangler
+Diesel
+Tommy Hilfiger
+Ralph Lauren
+Calvin Klein
+Lacoste
+Hugo Boss
+Esprit
+Mango
+Bershka
+Pull and Bear
+Massimo Dutti
+Stradivarius
+C and A
+Vans
+Converse
+Birkenstock
+Crocs
+Dr Martens
+Timberland
+Clarks
+Toms
+Coca-Cola
+Pepsi
+Fanta
+Sprite
+Red Bull
+Monster
+Gatorade
+Lipton
+Nescafe
+Starbucks
+Costa
+Dunkin
+Tim Hortons
+Pret
+McDonald's
+Burger King
+KFC
+Subway
+Domino's
+Pizza Hut
+Papa John's
+Chipotle
+Taco Bell
+Wendy's
+Five Guys
+Shake Shack
+Nando's
+Wagamama
+Deliveroo
+Just Eat
+Uber Eats
+Thuisbezorgd
+DoorDash
+Nutella
+Oreo
+Kit Kat
+Snickers
+Mars
+Twix
+Toblerone
+Lindt
+Ferrero Rocher
+Cadbury
+Haribo
+Milka
+Tony's Chocolonely
+Doritos
+Pringles
+Lay's
+Heinz
+Kellogg's
+Cheerios
+Quaker
+Pampers
+Colgate
+Oral-B
+Listerine
+Dove
+Nivea
+Axe
+Gillette
+L'Oreal
+Garnier
+Maybelline
+Revlon
+Clinique
+Estee Lauder
+Lancome
+Sephora
+Boots
+Kruidvat
+Etos
+Rituals
+Rossmann
+Douglas
+Ford
+Chevrolet
+Dodge
+Jeep
+Ram
+Cadillac
+Buick
+Lincoln
+Tesla Model S
+Model 3
+Model Y
+Cybertruck
+Polestar
+Rivian
+Lucid
+BYD
+NIO
+Xpeng
+Geely
+MG
+Mini
+Land Rover
+Range Rover
+Jaguar
+Bentley
+Rolls-Royce
+Aston Martin
+McLaren
+Lotus
+Bugatti
+Koenigsegg
+Pagani
+Skoda
+Seat
+Cupra
+Dacia
+Opel
+Vauxhall
+Alfa Romeo
+Lancia
+Smart
+Harley-Davidson
+Ducati
+Triumph
+Yamaha
+Kawasaki
+Vespa
+Piaggio
+KTM
+Trek
+Specialized
+Giant
+Cannondale
+Brompton
+Gazelle
+Batavus
+Cube
+Shimano
+Campagnolo
+SRAM
+Strava
+Komoot
+Peloton
+Zwift
+MyFitnessPal
+Duolingo
+Babbel
+Coursera
+edX
+Udemy
+Khan Academy
+Codecademy
+Kahoot
+Quizlet
+Grammarly
+DeepL
+Google Translate
+Spotify
+Apple Music
+Tidal
+Deezer
+SoundCloud
+Bandcamp
+Audible
+Netflix
+Hulu
+Disney Plus
+HBO
+Max
+Prime Video
+Peacock
+Crunchyroll
+YouTube
+Twitch
+Vimeo
+TikTok
+Instagram
+Facebook
+Snapchat
+Pinterest
+Tumblr
+Tinder
+Bumble
+Hinge
+Pokemon Go
+Wordle
+Candy Crush
+Angry Birds
+Clash of Clans
+Duolingo Max
+Uber One
+Amazon Prime
+Google One
+OneDrive
+Dropbox
+Box
+WeTransfer
+Google Drive
+iCloud Drive
+Proton
+Tutanota
+Gmail
+Outlook
+Yahoo
+Hotmail
+Thunderbird
+Superhuman
+Calendly
+Doodle
+Loom
+Miro
+Mural
+FigJam
+Lucidchart
+Draw.io
+Whimsical
+Typeform
+SurveyMonkey
+Qualtrics
+Google Forms
+Canva Pro
+Adobe Acrobat
+DocuSign
+PandaDoc
+Dropbox Sign
+Evernote
+Todoist
+Things
+TickTick
+Bear
+Notability
+GoodNotes
+Procreate
+Affinity
+Pixelmator
+GIMP
+Inkscape
+Krita
+Audacity
+Ableton
+Logic Pro
+GarageBand
+FL Studio
+Pro Tools
+Cubase
+Reaper
+DaVinci Resolve
+Final Cut
+OBS
+Camtasia
+Descript
+Otter
+Rev
+Fireflies
+Wispr Flow
+Dragon NaturallySpeaking
+Voice Control

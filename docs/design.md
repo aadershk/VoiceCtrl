@@ -1,5 +1,7 @@
 # VoiceCtrl: Windows Voice Dictation Utility
 
+> **Superseded (2026-09-29).** This document describes v3, whose WPF interface was retired in v4 (see [ADR-0003](adr/0003-webview2-ui-supersedes-0001.md)). v3 stays readable at the `v3.0.0` tag. v4's design system is DESIGN.md and its build spec is the v4.0 build spec.
+
 ## Context
 
 The goal was a dictation tool for Windows where a global hotkey summons a small floating bar anywhere in the OS. You toggle recording, speak, toggle again, and the cleaned-up transcription is injected at the text cursor in whatever application currently has focus: a terminal, a browser, an editor, Office, a chat app. The bar to clear was "as well integrated as Windows' own built-in voice dictation", so broad and reliable compatibility across arbitrary applications is the success criterion, not a proof of concept that works in one text box.
@@ -54,7 +56,7 @@ C:\VoiceCtrl\
 │   │   ├── app.manifest                          PerMonitorV2 DPI, asInvoker (NOT requireAdministrator)
 │   │   ├── App.xaml / App.xaml.cs                composition root; no MainWindow; ShutdownMode=OnExplicitShutdown
 │   │   ├── Overlay\OverlayWindow.xaml(.cs)        floating bar; WS_EX_NOACTIVATE/TOPMOST/TOOLWINDOW
-│   │   ├── Overlay\MonitorPositioner.cs           bottom-center-of-active-monitor math
+│   │   ├── Overlay\MonitorPositioner.cs           finds the active monitor, its work area + DPI; feeds Core\Overlay\OverlayPlacement
 │   │   ├── Tray\TrayIconManager.cs                Hardcodet.NotifyIcon.Wpf setup + context menu
 │   │   ├── Tray\AutoStartManager.cs               HKCU Run key register/unregister
 │   │   ├── Tray\StartMenuShortcut.cs              self-healing "VoiceCtrl" .lnk via WScript.Shell COM, rewritten every launch
@@ -66,6 +68,8 @@ C:\VoiceCtrl\
 │       ├── Hotkey\CtrlKeyTracker.cs               per-key chord-guard and repeat de-duplication
 │       ├── Hotkey\TrackedCtrlKeyResolver.cs       raw hook event -> tracked VK, incl. Bluetooth fallback
 │       ├── Hotkey\DoubleTapDetector.cs            pure logic, no Win32, unit testable
+│       ├── Overlay\OverlayPlacement.cs            pure bottom-center math in physical pixels, unit testable
+│       ├── Overlay\PixelRect.cs                   physical-pixel rectangle, no WPF types
 │       ├── Dictation\DictationStateMachine.cs     Idle/Recording/Processing; the toggle's only truth
 │       ├── Audio\WasapiAudioRecorder.cs           NAudio WasapiCapture + resample + WaveFileWriter
 │       ├── Audio\AudioLevelMeter.cs               RMS over the device's native format, throttled to ~20Hz
@@ -161,7 +165,7 @@ throttled to ~20Hz and marshalled with `Dispatcher.BeginInvoke`, so a loud passa
 UI thread. This is the whole of the "is it hearing me" feedback; live transcript preview was
 considered and dropped, since it needs a second, streaming ASR model resident at all times.
 
-**Multi-monitor positioning:** mark PerMonitorV2 DPI-aware in `app.manifest`; do bottom-center math in physical pixels via `GetForegroundWindow`, then `MonitorFromWindow(MONITOR_DEFAULTTONEAREST)`, then `GetMonitorInfo` (use `rcWork` so the bar doesn't overlap the taskbar), then convert to WPF DIPs using *that monitor's* DPI (`GetDpiForMonitor`), not the primary monitor's. Wrong on a single-monitor 100%-scale dev box only shows up as a misplaced bar on mixed-DPI multi-monitor setups, so it is worth a real test if a second display is available.
+**Multi-monitor positioning:** mark PerMonitorV2 DPI-aware in `app.manifest`; find the monitor via `GetForegroundWindow`, then `MonitorFromWindow(MONITOR_DEFAULTTONEAREST)`, then `GetMonitorInfo` (use `rcWork` so the bar doesn't overlap the taskbar) and `GetDpiForMonitor` for *that monitor's* DPI, and do the bottom-center math in physical pixels (`Core\Overlay\OverlayPlacement`, unit-tested on plain values). Then move the window with `SetWindowPos` in those pixels, never via WPF's `Left`/`Top`: the Overlay is a long-lived singleton whose HWND already exists after the first show, and WPF converts `Left`/`Top` DIPs using the window's *current* DPI (wherever it was last shown), not the destination's. If the move crosses a DPI boundary, WPF applies the `WM_DPICHANGED` suggested rectangle verbatim via its own message hook, so `OverlayWindow`'s `HwndSource.AddHook`ed `WndProc` — which runs *before* that WPF hook — intercepts `WM_DPICHANGED` and overwrites the RECT at its `lParam` in place with a fresh bottom-center placement at the new DPI before letting the message through unhandled. Wrong on a single-monitor 100%-scale dev box only shows up as a misplaced bar on mixed-DPI multi-monitor setups, so it is worth a real test if a second display is available.
 
 ### Audio capture (`Audio\WasapiAudioRecorder.cs`)
 

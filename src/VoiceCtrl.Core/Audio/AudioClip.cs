@@ -26,4 +26,36 @@ public sealed class AudioClip
     /// silence detector.
     /// </summary>
     public bool IsLikelySilent() => Duration < MinimumSpeechDuration;
+
+    /// <summary>
+    /// The device delivered no signal at all: every sample within a few least-significant bits of
+    /// zero, which is what a muted or dead input gives (VED-75, "No audio from the microphone").
+    /// Real hardware, even in a quiet room, sits far above this (room tone peaked at 418 of 32767),
+    /// so unlike a speech threshold this can't mistake quiet talking for a dead mic. False for a
+    /// clip too short to judge and for bytes that are not a 16-bit WAV.
+    /// </summary>
+    public bool HasNoSignal()
+    {
+        const int wavHeaderBytes = 44;
+        const int noSignalPeak = 3;
+
+        if (IsLikelySilent() || WavBytes.Length < wavHeaderBytes + 2 * MinimumJudgedSamples)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<byte> pcm = WavBytes.AsSpan(wavHeaderBytes);
+        for (int i = 0; i + 1 < pcm.Length; i += 2)
+        {
+            if (Math.Abs((int)BitConverter.ToInt16(pcm.Slice(i, 2))) > noSignalPeak)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>100 ms at 16 kHz: fewer samples than this say nothing about the device.</summary>
+    private const int MinimumJudgedSamples = 1600;
 }

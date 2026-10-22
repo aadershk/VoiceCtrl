@@ -17,7 +17,7 @@ public class FormattingHintMapperTests
     public void KnownProseApp_ResolvesToProseHint()
     {
         string? result = FormattingHintMapper.Resolve("whatsapp");
-        Assert.Contains("continuous natural sentences", result);
+        Assert.Contains("one paragraph", result);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class FormattingHintMapperTests
     public void ExtraProseApps_ResolvesToProseHint()
     {
         string? result = FormattingHintMapper.Resolve("telegram", extraProseApps: new[] { "telegram" });
-        Assert.Contains("continuous natural sentences", result);
+        Assert.True(FormattingHintMapper.IsProse(result));
     }
 
     [Fact]
@@ -72,12 +72,12 @@ public class FormattingHintMapperTests
     {
         // "windowsterminal" is structured by default, and an explicit override should still win.
         string? result = FormattingHintMapper.Resolve("windowsterminal", extraProseApps: new[] { "windowsterminal" });
-        Assert.Contains("continuous natural sentences", result);
+        Assert.True(FormattingHintMapper.IsProse(result));
     }
 
     [Theory]
     [InlineData(AppProfile.Structured, "Markdown")]
-    [InlineData(AppProfile.Prose, "continuous natural sentences")]
+    [InlineData(AppProfile.Prose, "one paragraph")]
     [InlineData("  STRUCTURED  ", "Markdown")]
     public void ResolveExplicit_MapsAProfileValueToItsHint(string formatting, string expected)
     {

@@ -1,10 +1,8 @@
 namespace VoiceCtrl.Core.Config;
 
 /// <summary>
-/// The user's live, tray-switchable transcription mode choice. Distinct from
-/// <see cref="AppConfig.TranscriptionMode"/>, which is only the one-time .env value
-/// <see cref="TranscriptionModeStore"/> reads to seed this preference on its very first run,
-/// after that, the persisted preference is the sole source of truth and .env is no longer consulted.
+/// The user's live, tray-switchable transcription mode choice, kept in the settings store's
+/// transcription section and read through <see cref="TranscriptionModeStore"/>.
 /// </summary>
 public enum TranscriptionModePreference
 {

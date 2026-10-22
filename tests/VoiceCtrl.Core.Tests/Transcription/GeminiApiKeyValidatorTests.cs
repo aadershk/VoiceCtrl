@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http;
+using VoiceCtrl.Core.Online;
 using VoiceCtrl.Core.Transcription;
 
 namespace VoiceCtrl.Core.Tests.Transcription;
@@ -11,9 +12,9 @@ public class GeminiApiKeyValidatorTests
     {
         using HttpClient client = CreateClient(HttpStatusCode.OK);
 
-        GeminiApiKeyValidator.Result result = await GeminiApiKeyValidator.ValidateAsync("key", client);
+        KeyValidation result = await GeminiApiKeyValidator.ValidateAsync("key", client);
 
-        Assert.Equal(GeminiApiKeyValidator.Result.Valid, result);
+        Assert.Equal(KeyValidation.Valid, result);
     }
 
     [Theory]
@@ -25,9 +26,9 @@ public class GeminiApiKeyValidatorTests
     {
         using HttpClient client = CreateClient(statusCode);
 
-        GeminiApiKeyValidator.Result result = await GeminiApiKeyValidator.ValidateAsync("key", client);
+        KeyValidation result = await GeminiApiKeyValidator.ValidateAsync("key", client);
 
-        Assert.Equal(GeminiApiKeyValidator.Result.InvalidKey, result);
+        Assert.Equal(KeyValidation.InvalidKey, result);
     }
 
     [Theory]
@@ -38,9 +39,9 @@ public class GeminiApiKeyValidatorTests
     {
         using HttpClient client = CreateClient(statusCode);
 
-        GeminiApiKeyValidator.Result result = await GeminiApiKeyValidator.ValidateAsync("key", client);
+        KeyValidation result = await GeminiApiKeyValidator.ValidateAsync("key", client);
 
-        Assert.Equal(GeminiApiKeyValidator.Result.Unknown, result);
+        Assert.Equal(KeyValidation.Unknown, result);
     }
 
     [Fact]
@@ -48,9 +49,9 @@ public class GeminiApiKeyValidatorTests
     {
         using HttpClient client = CreateClient(_ => throw new HttpRequestException("no route to host"));
 
-        GeminiApiKeyValidator.Result result = await GeminiApiKeyValidator.ValidateAsync("key", client);
+        KeyValidation result = await GeminiApiKeyValidator.ValidateAsync("key", client);
 
-        Assert.Equal(GeminiApiKeyValidator.Result.NetworkError, result);
+        Assert.Equal(KeyValidation.NetworkError, result);
     }
 
     [Fact]
@@ -58,9 +59,9 @@ public class GeminiApiKeyValidatorTests
     {
         using HttpClient client = CreateClient(_ => throw new TaskCanceledException("the operation timed out"));
 
-        GeminiApiKeyValidator.Result result = await GeminiApiKeyValidator.ValidateAsync("key", client);
+        KeyValidation result = await GeminiApiKeyValidator.ValidateAsync("key", client);
 
-        Assert.Equal(GeminiApiKeyValidator.Result.Timeout, result);
+        Assert.Equal(KeyValidation.Timeout, result);
     }
 
     [Fact]

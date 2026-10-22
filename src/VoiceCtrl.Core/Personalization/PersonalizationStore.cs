@@ -13,7 +13,7 @@ public sealed class PersonalizationStore
     /// which must measure the transcription path rather than whatever is in the real dictionary.</summary>
     public static PersonalizationStore Empty { get; } = new();
 
-    private readonly UserFileCache<IReadOnlyList<string>>? _dictionary;
+    private readonly UserFileCache<IReadOnlyList<DictionaryEntry>>? _dictionary;
     private readonly UserFileCache<SnippetTable>? _snippets;
     private readonly UserFileCache<AppProfileTable>? _profiles;
 
@@ -23,8 +23,8 @@ public sealed class PersonalizationStore
 
     public PersonalizationStore(string dictionaryPath, string snippetsPath, string profilesPath)
     {
-        _dictionary = new UserFileCache<IReadOnlyList<string>>(
-            dictionaryPath, contents => CustomDictionary.Parse(SplitLines(contents)), Array.Empty<string>());
+        _dictionary = new UserFileCache<IReadOnlyList<DictionaryEntry>>(
+            dictionaryPath, contents => CustomDictionary.Parse(SplitLines(contents)), Array.Empty<DictionaryEntry>());
 
         _snippets = new UserFileCache<SnippetTable>(
             snippetsPath, contents => SnippetTable.Parse(SplitLines(contents)), SnippetTable.Empty);
@@ -33,7 +33,7 @@ public sealed class PersonalizationStore
             profilesPath, AppProfileTable.Parse, AppProfileTable.Empty);
     }
 
-    public IReadOnlyList<string> DictionaryTerms => _dictionary?.Value ?? Array.Empty<string>();
+    public IReadOnlyList<DictionaryEntry> Dictionary => _dictionary?.Value ?? Array.Empty<DictionaryEntry>();
 
     public SnippetTable Snippets => _snippets?.Value ?? SnippetTable.Empty;
 

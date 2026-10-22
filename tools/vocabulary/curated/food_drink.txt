@@ -1,0 +1,638 @@
+Shakshuka
+Tagine
+Couscous
+Harissa
+Hummus
+Baba ganoush
+Falafel
+Tabbouleh
+Fattoush
+Shawarma
+Kebab
+Doner
+Kofta
+Shish
+Baklava
+Halloumi
+Labneh
+Za'atar
+Sumac
+Tahini
+Pita
+Manakish
+Mansaf
+Kibbeh
+Dolma
+Moussaka
+Souvlaki
+Gyros
+Tzatziki
+Spanakopita
+Feta
+Ouzo
+Retsina
+Raki
+Tiramisu
+Panna cotta
+Cannoli
+Gelato
+Affogato
+Biscotti
+Panettone
+Risotto
+Gnocchi
+Ravioli
+Tortellini
+Lasagne
+Carbonara
+Bolognese
+Arrabbiata
+Puttanesca
+Cacio e pepe
+Amatriciana
+Pesto
+Focaccia
+Ciabatta
+Bruschetta
+Caprese
+Mozzarella
+Burrata
+Ricotta
+Mascarpone
+Parmesan
+Parmigiano Reggiano
+Pecorino
+Gorgonzola
+Prosciutto
+Pancetta
+Salami
+Mortadella
+Bresaola
+Nduja
+Espresso
+Cappuccino
+Macchiato
+Ristretto
+Lungo
+Americano
+Cortado
+Flat white
+Latte
+Mocha
+Chai
+Matcha
+Oolong
+Darjeeling
+Assam
+Earl Grey
+Lapsang
+Rooibos
+Kombucha
+Kefir
+Amaretto
+Limoncello
+Grappa
+Campari
+Aperol
+Prosecco
+Chianti
+Barolo
+Barbaresco
+Brunello
+Montepulciano
+Sangiovese
+Nebbiolo
+Primitivo
+Pinot Noir
+Pinot Grigio
+Pinot Blanc
+Chardonnay
+Sauvignon Blanc
+Riesling
+Gewurztraminer
+Chenin Blanc
+Viognier
+Albarino
+Verdejo
+Tempranillo
+Garnacha
+Grenache
+Syrah
+Shiraz
+Malbec
+Merlot
+Cabernet Sauvignon
+Cabernet Franc
+Zinfandel
+Carmenere
+Bordeaux
+Burgundy
+Champagne
+Chablis
+Beaujolais
+Sancerre
+Cotes du Rhone
+Rioja
+Ribera del Duero
+Cava
+Sherry
+Port
+Madeira
+Moscato
+Lambrusco
+Sauternes
+Cognac
+Armagnac
+Calvados
+Absinthe
+Pastis
+Whisky
+Whiskey
+Bourbon
+Scotch
+Single malt
+Rye
+Tequila
+Mezcal
+Rum
+Cachaca
+Pisco
+Vodka
+Gin
+Jenever
+Genever
+Schnapps
+Sake
+Soju
+Baijiu
+Shochu
+Umeshu
+Lager
+Pilsner
+Stout
+Porter
+IPA
+Saison
+Dubbel
+Tripel
+Quadrupel
+Weissbier
+Hefeweizen
+Kolsch
+Altbier
+Gueuze
+Lambic
+Trappist
+Heineken
+Amstel
+Grolsch
+Bavaria
+Hertog Jan
+La Chouffe
+Duvel
+Leffe
+Hoegaarden
+Stella Artois
+Guinness
+Budweiser
+Corona
+Peroni
+Moretti
+Estrella
+San Miguel
+Tsingtao
+Kingfisher
+Singha
+Tiger
+Asahi
+Kirin
+Sapporo
+Margarita
+Mojito
+Daiquiri
+Manhattan
+Negroni
+Old Fashioned
+Martini
+Cosmopolitan
+Bellini
+Spritz
+Sangria
+Pina colada
+Bloody Mary
+Moscow Mule
+Whiskey sour
+Sushi
+Sashimi
+Nigiri
+Maki
+Temaki
+Tempura
+Teriyaki
+Yakitori
+Katsu
+Tonkatsu
+Ramen
+Udon
+Soba
+Miso
+Dashi
+Mirin
+Wasabi
+Nori
+Edamame
+Gyoza
+Okonomiyaki
+Takoyaki
+Onigiri
+Bento
+Mochi
+Dorayaki
+Wagyu
+Kobe
+Kimchi
+Bibimbap
+Bulgogi
+Japchae
+Gochujang
+Tteokbokki
+Pho
+Banh mi
+Bun cha
+Goi cuon
+Pad thai
+Tom yum
+Tom kha
+Green curry
+Massaman
+Som tam
+Larb
+Satay
+Rendang
+Nasi goreng
+Mie goreng
+Gado-gado
+Laksa
+Chicken rice
+Roti canai
+Dim sum
+Har gow
+Siu mai
+Char siu
+Peking duck
+Kung pao
+Mapo tofu
+Hot pot
+Szechuan
+Sichuan
+Cantonese
+Hunan
+Wonton
+Chow mein
+Lo mein
+Congee
+Bao
+Tofu
+Tempeh
+Seitan
+Biryani
+Pulao
+Dal
+Dhal
+Sambar
+Rasam
+Idli
+Dosa
+Vada
+Uttapam
+Paneer
+Tikka masala
+Butter chicken
+Korma
+Vindaloo
+Rogan josh
+Madras
+Jalfrezi
+Saag
+Palak paneer
+Aloo gobi
+Chana masala
+Rajma
+Samosa
+Pakora
+Bhaji
+Chaat
+Pani puri
+Naan
+Roti
+Chapati
+Paratha
+Poori
+Thali
+Raita
+Lassi
+Chutney
+Ghee
+Garam masala
+Turmeric
+Cardamom
+Cumin
+Coriander
+Fenugreek
+Asafoetida
+Mustard seed
+Fennel
+Cinnamon
+Clove
+Nutmeg
+Mace
+Saffron
+Paprika
+Cayenne
+Chipotle
+Jalapeno
+Habanero
+Scotch bonnet
+Sriracha
+Tabasco
+Taco
+Burrito
+Quesadilla
+Enchilada
+Fajita
+Tamale
+Nachos
+Guacamole
+Salsa
+Pico de gallo
+Mole
+Pozole
+Ceviche
+Empanada
+Arepa
+Churrasco
+Feijoada
+Picanha
+Pao de queijo
+Brigadeiro
+Dulce de leche
+Chimichurri
+Croissant
+Baguette
+Brioche
+Pain au chocolat
+Eclair
+Macaron
+Madeleine
+Profiterole
+Millefeuille
+Tarte tatin
+Creme brulee
+Ratatouille
+Bouillabaisse
+Cassoulet
+Coq au vin
+Boeuf bourguignon
+Quiche
+Crepe
+Galette
+Camembert
+Brie
+Roquefort
+Comte
+Gruyere
+Emmental
+Raclette
+Fondue
+Reblochon
+Munster
+Gouda
+Edam
+Leerdammer
+Maasdam
+Beemster
+Boerenkaas
+Stroopwafel
+Poffertjes
+Oliebollen
+Bitterballen
+Kroket
+Frikandel
+Haring
+Hagelslag
+Speculaas
+Pepernoten
+Stamppot
+Hutspot
+Erwtensoep
+Snert
+Pannenkoek
+Appeltaart
+Vlaai
+Drop
+Borrel
+Bratwurst
+Currywurst
+Sauerkraut
+Schnitzel
+Spaetzle
+Pretzel
+Strudel
+Lebkuchen
+Stollen
+Pierogi
+Bigos
+Borscht
+Blini
+Pelmeni
+Goulash
+Paprikash
+Langos
+Cevapi
+Burek
+Pljeskavica
+Smorrebrod
+Gravlax
+Surstromming
+Lutefisk
+Meatballs
+Kanelbulle
+Fika
+Lefse
+Fish and chips
+Shepherd's pie
+Bangers and mash
+Yorkshire pudding
+Scones
+Crumpets
+Marmite
+Vegemite
+Haggis
+Cornish pasty
+Ploughman's
+Hamburger
+Cheeseburger
+Hot dog
+Barbecue
+Brisket
+Pulled pork
+Mac and cheese
+Cornbread
+Grits
+Gumbo
+Jambalaya
+Po' boy
+Clam chowder
+Lobster roll
+Bagel
+Lox
+Pastrami
+Reuben
+Pancakes
+Waffles
+Doughnut
+Brownie
+Cheesecake
+Pavlova
+Lamington
+Tim Tam
+Paella
+Tortilla
+Gazpacho
+Salmorejo
+Patatas bravas
+Croquetas
+Jamon iberico
+Chorizo
+Manchego
+Churros
+Turron
+Pasteis de nata
+Bacalhau
+Piri piri
+Quinoa
+Amaranth
+Spelt
+Farro
+Bulgur
+Freekeh
+Polenta
+Semolina
+Arborio
+Basmati
+Jasmine
+Edamame
+Kale
+Chard
+Bok choy
+Pak choi
+Kohlrabi
+Fennel
+Artichoke
+Aubergine
+Eggplant
+Courgette
+Zucchini
+Rocket
+Arugula
+Radicchio
+Endive
+Chicory
+Celeriac
+Parsnip
+Beetroot
+Turnip
+Swede
+Daikon
+Jicama
+Plantain
+Cassava
+Yam
+Taro
+Okra
+Jackfruit
+Durian
+Lychee
+Rambutan
+Mangosteen
+Pomelo
+Kumquat
+Yuzu
+Persimmon
+Papaya
+Guava
+Passion fruit
+Dragon fruit
+Pomegranate
+Quince
+Medlar
+Gooseberry
+Redcurrant
+Blackcurrant
+Elderflower
+Lingonberry
+Cloudberry
+Bilberry
+Acai
+Goji
+Spirulina
+Chia
+Flaxseed
+Hemp
+Pistachio
+Cashew
+Macadamia
+Pecan
+Hazelnut
+Walnut
+Almond
+Brazil nut
+Pine nut
+Sesame
+Tamarind
+Vanilla
+Cacao
+Couverture
+Praline
+Nougat
+Marzipan
+Fondant
+Ganache
+Meringue
+Custard
+Sabayon
+Zabaglione
+Gelatine
+Agar
+Xanthan
+Sourdough
+Rye bread
+Pumpernickel
+Ciabatta
+Naan
+Tortilla
+Sous vide
+Julienne
+Brunoise
+Chiffonade
+Mirepoix
+Roux
+Bechamel
+Veloute
+Hollandaise
+Bearnaise
+Aioli
+Mayonnaise
+Vinaigrette
+Reduction
+Deglaze
+Blanch
+Braise
+Poach
+Saute
+Flambe
+Confit
+Cure
+Smoke
+Ferment
+Pickle

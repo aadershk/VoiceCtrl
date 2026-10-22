@@ -12,7 +12,7 @@ namespace VoiceCtrl.Core.Audio;
 /// which risks audible artifacts at chunk boundaries. Recording itself is just an append, so
 /// it can't glitch.
 /// </summary>
-public sealed class WasapiAudioRecorder : IDisposable
+public sealed class WasapiAudioRecorder : IAudioRecorder, IDisposable
 {
     private const int TargetSampleRate = 16000;
     private const int TargetBits = 16;
@@ -22,6 +22,7 @@ public sealed class WasapiAudioRecorder : IDisposable
     /// passes over the audio per emission and still faster than the eye resolves.</summary>
     private const int LevelIntervalMs = 50;
 
+    private readonly Func<string?> _deviceId;
     private WasapiCapture? _capture;
     private MemoryStream? _rawBuffer;
     private WaveFileWriter? _rawWriter;
@@ -30,6 +31,14 @@ public sealed class WasapiAudioRecorder : IDisposable
     private bool _sourceIsFloat;
     private int _sourceBitsPerSample;
     private long _lastLevelTick;
+    private volatile bool _stopRequested;
+
+    /// <param name="deviceId">Read at each start: the microphone chosen in Settings while it is
+    /// connected, or null for the Windows default.</param>
+    public WasapiAudioRecorder(Func<string?> deviceId)
+    {
+        _deviceId = deviceId;
+    }
 
     public bool IsRecording { get; private set; }
 
@@ -40,6 +49,13 @@ public sealed class WasapiAudioRecorder : IDisposable
     /// </summary>
     public event Action<float>? LevelChanged;
 
+    /// <summary>
+    /// The device stopped delivering audio on its own while recording (unplugged, disabled, taken
+    /// over): WASAPI ended the capture, nobody asked it to. Raised on the capture thread, so the
+    /// subscriber has to marshal it. Not raised for a stop that <see cref="StopAsync"/> asked for.
+    /// </summary>
+    public event Action? Faulted;
+
     public void Start()
     {
         if (IsRecording)
@@ -47,16 +63,11 @@ public sealed class WasapiAudioRecorder : IDisposable
             return;
         }
 
-        MMDevice device;
-        using (var enumerator = new MMDeviceEnumerator())
-        {
-            device = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
-        }
-
-        _capture = new WasapiCapture(device);
+        _capture = new WasapiCapture(CaptureDevices.Open(_deviceId()));
         _rawBuffer = new MemoryStream();
         _rawWriter = new WaveFileWriter(new IgnoreDisposeStream(_rawBuffer), _capture.WaveFormat);
         _stoppedTcs = new TaskCompletionSource<bool>();
+        _stopRequested = false;
 
         _capture.DataAvailable += OnDataAvailable;
         _capture.RecordingStopped += OnRecordingStopped;
@@ -126,6 +137,10 @@ public sealed class WasapiAudioRecorder : IDisposable
     private void OnRecordingStopped(object? sender, StoppedEventArgs e)
     {
         _stoppedTcs?.TrySetResult(true);
+        if (e.Exception is not null || !_stopRequested)
+        {
+            Faulted?.Invoke();
+        }
     }
 
     /// <summary>
@@ -140,6 +155,7 @@ public sealed class WasapiAudioRecorder : IDisposable
 
         TimeSpan duration = DateTime.UtcNow - _startedAtUtc;
 
+        _stopRequested = true;
         _capture.StopRecording();
         // NAudio's StopRecording() call can return before the last buffers are flushed;
         // RecordingStopped is the actual completion signal.
@@ -216,6 +232,7 @@ public sealed class WasapiAudioRecorder : IDisposable
     {
         if (IsRecording && _capture is not null)
         {
+            _stopRequested = true;
             _capture.StopRecording();
         }
 

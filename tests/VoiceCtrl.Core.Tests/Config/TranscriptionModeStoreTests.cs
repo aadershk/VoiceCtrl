@@ -3,119 +3,94 @@ using Xunit;
 
 namespace VoiceCtrl.Core.Tests.Config;
 
-public class TranscriptionModeStoreTests : IDisposable
+public class TranscriptionModeStoreTests
 {
-    private readonly List<string> _tempFiles = [];
-
     [Fact]
-    public void NoPrefsFile_NoExplicitEnvMode_SeedsToAuto()
+    public void Current_ReadsTheSettingsStore()
     {
-        AppConfig config = LoadConfig(envContents: null);
+        SettingsStore settings = SettingsWithMode(TranscriptionModePreference.Offline);
 
-        TranscriptionModeStore store = TranscriptionModeStore.Load(TempPrefsPath(), config);
-
-        Assert.Equal(TranscriptionModePreference.Auto, store.Current);
+        Assert.Equal(TranscriptionModePreference.Offline, new TranscriptionModeStore(settings).Current);
     }
 
     [Fact]
-    public void NoPrefsFile_ExplicitOfflineEnvMode_SeedsToOffline()
+    public void SetAndSave_WritesTheModeIntoTheSettingsStore()
     {
-        AppConfig config = LoadConfig("TRANSCRIPTION_MODE=Offline");
+        SettingsStore settings = SettingsWithMode(TranscriptionModePreference.Auto);
+        var store = new TranscriptionModeStore(settings);
 
-        TranscriptionModeStore store = TranscriptionModeStore.Load(TempPrefsPath(), config);
+        store.SetAndSave(TranscriptionModePreference.Offline);
 
         Assert.Equal(TranscriptionModePreference.Offline, store.Current);
+        Assert.Equal(TranscriptionModePreference.Offline, settings.Current.Transcription.Mode);
+    }
+
+    [Theory]
+    [InlineData(TranscriptionModePreference.Offline)]
+    [InlineData(TranscriptionModePreference.Auto)]
+    public void ChangingToOfflineOrAuto_RaisesSwitchedSignal(TranscriptionModePreference target)
+    {
+        var store = new TranscriptionModeStore(SettingsWithMode(TranscriptionModePreference.Online));
+        bool signaled = false;
+        store.SwitchedToOfflineOrAuto += () => signaled = true;
+
+        store.SetAndSave(target);
+
+        Assert.True(signaled);
     }
 
     [Fact]
-    public void NoPrefsFile_ExplicitOnlineEnvMode_SeedsToAuto()
+    public void ChangingToOnline_DoesNotRaiseSwitchedSignal()
     {
-        // Explicit Online still widens to Auto, since Auto behaves identically to Online whenever
-        // there's internet, so this only ever adds a fallback, never removes existing behavior.
-        AppConfig config = LoadConfig("TRANSCRIPTION_MODE=Online");
+        var store = new TranscriptionModeStore(SettingsWithMode(TranscriptionModePreference.Offline));
+        bool signaled = false;
+        store.SwitchedToOfflineOrAuto += () => signaled = true;
 
-        TranscriptionModeStore store = TranscriptionModeStore.Load(TempPrefsPath(), config);
+        store.SetAndSave(TranscriptionModePreference.Online);
 
-        Assert.Equal(TranscriptionModePreference.Auto, store.Current);
+        Assert.False(signaled);
     }
 
     [Fact]
-    public void SeedingPersistsImmediately_SoALaterEnvEditDoesNotChangeIt()
+    public void ModeUnchanged_DoesNotRaiseSwitchedSignal()
     {
-        string prefsPath = TempPrefsPath();
-        TranscriptionModeStore.Load(prefsPath, LoadConfig("TRANSCRIPTION_MODE=Offline"));
+        var store = new TranscriptionModeStore(SettingsWithMode(TranscriptionModePreference.Auto));
+        bool signaled = false;
+        store.SwitchedToOfflineOrAuto += () => signaled = true;
 
-        // Simulate the user editing .env afterward for an unrelated reason.
-        TranscriptionModeStore reloaded = TranscriptionModeStore.Load(prefsPath, LoadConfig(envContents: null));
+        store.SetAndSave(TranscriptionModePreference.Auto);
 
-        Assert.Equal(TranscriptionModePreference.Offline, reloaded.Current);
+        Assert.False(signaled);
     }
 
     [Fact]
-    public void ExistingPrefsFile_IsSoleSourceOfTruth_RegardlessOfEnv()
+    public void AModeChangeMadeDirectlyInTheSettingsStore_AlsoRaisesSwitchedSignal()
     {
-        string prefsPath = TempPrefsPath();
-        File.WriteAllText(prefsPath, """{"TranscriptionMode":"Online"}""");
+        // Settings apply live: whoever changes the Mode (tray, Hub, a future bridge handler),
+        // the offline model warm-up hears about it.
+        SettingsStore settings = SettingsWithMode(TranscriptionModePreference.Online);
+        var store = new TranscriptionModeStore(settings);
+        bool signaled = false;
+        store.SwitchedToOfflineOrAuto += () => signaled = true;
 
-        AppConfig config = LoadConfig("TRANSCRIPTION_MODE=Offline");
-        TranscriptionModeStore store = TranscriptionModeStore.Load(prefsPath, config);
+        settings.Update(s => s with { Transcription = s.Transcription with { Mode = TranscriptionModePreference.Offline } });
 
-        Assert.Equal(TranscriptionModePreference.Online, store.Current);
+        Assert.True(signaled);
     }
 
     [Fact]
-    public void CorruptPrefsFile_FallsBackToSeedAndOverwritesIt()
+    public void AnUnrelatedTranscriptionChange_DoesNotRaiseSwitchedSignal()
     {
-        string prefsPath = TempPrefsPath();
-        File.WriteAllText(prefsPath, "{not valid json");
+        SettingsStore settings = SettingsWithMode(TranscriptionModePreference.Auto);
+        var store = new TranscriptionModeStore(settings);
+        bool signaled = false;
+        store.SwitchedToOfflineOrAuto += () => signaled = true;
 
-        TranscriptionModeStore store = TranscriptionModeStore.Load(prefsPath, LoadConfig(envContents: null));
+        settings.Update(s => s with { Transcription = s.Transcription with { DefaultCleanup = "light" } });
 
-        Assert.Equal(TranscriptionModePreference.Auto, store.Current);
-        Assert.Contains("Auto", File.ReadAllText(prefsPath));
+        Assert.False(signaled);
     }
 
-    [Fact]
-    public void Save_PersistsCurrentAcrossReload()
-    {
-        string prefsPath = TempPrefsPath();
-        AppConfig config = LoadConfig(envContents: null);
-        TranscriptionModeStore store = TranscriptionModeStore.Load(prefsPath, config);
-
-        store.Current = TranscriptionModePreference.Offline;
-        store.Save();
-
-        TranscriptionModeStore reloaded = TranscriptionModeStore.Load(prefsPath, config);
-        Assert.Equal(TranscriptionModePreference.Offline, reloaded.Current);
-    }
-
-    private AppConfig LoadConfig(string? envContents)
-    {
-        string envPath = Path.Combine(Path.GetTempPath(), $"voicectrl-test-{Guid.NewGuid()}.env");
-        if (envContents is not null)
-        {
-            File.WriteAllText(envPath, envContents);
-            _tempFiles.Add(envPath);
-        }
-
-        return ConfigLoader.Load(envPath);
-    }
-
-    private string TempPrefsPath()
-    {
-        string path = Path.Combine(Path.GetTempPath(), $"voicectrl-test-prefs-{Guid.NewGuid()}.json");
-        _tempFiles.Add(path);
-        return path;
-    }
-
-    public void Dispose()
-    {
-        foreach (string path in _tempFiles)
-        {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-    }
+    private static SettingsStore SettingsWithMode(TranscriptionModePreference mode) =>
+        SettingsStore.InMemory(new UserSettings { Transcription = new TranscriptionSection { Mode = mode } });
 }

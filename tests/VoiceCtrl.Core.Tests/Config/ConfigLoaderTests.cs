@@ -1,3 +1,4 @@
+using VoiceCtrl.Core.Online;
 using VoiceCtrl.Core.Config;
 using Xunit;
 
@@ -8,12 +9,13 @@ public class ConfigLoaderTests : IDisposable
     private readonly List<string> _tempFiles = [];
 
     [Fact]
-    public void MissingFile_ReturnsAllDefaults()
+    public void DefaultSettings_GiveTheShippedDefaults()
     {
-        AppConfig config = ConfigLoader.Load(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()));
+        AppConfig config = ConfigLoader.Load(new UserSettings(), geminiApiKey: string.Empty);
 
         Assert.Equal(string.Empty, config.GeminiApiKey);
-        Assert.Equal("gemini-3.7-flash", config.GeminiModelId);
+        Assert.False(config.IsApiKeyConfigured);
+        Assert.Equal(OnlinePresets.GeminiModel, config.GeminiModelId);
         Assert.Equal(400, config.DoubleTapWindowMs);
         Assert.Equal(1500, config.AutoHideDelayMs);
         Assert.Equal("low", config.ThinkingLevel);
@@ -22,63 +24,38 @@ public class ConfigLoaderTests : IDisposable
         Assert.Equal("standard", config.CleanupLevel);
         Assert.Empty(config.PromptStyleApps);
         Assert.Empty(config.ChatStyleApps);
-        Assert.Equal("Online", config.TranscriptionMode);
-        Assert.Null(config.ExplicitTranscriptionMode);
+        Assert.Equal("parakeet-tdt-0.6b-v2", config.LocalModelVariant);
+        Assert.False(config.CompressUpload);
+        Assert.False(config.SpokenPunctuation);
     }
 
     [Fact]
-    public void PromptAndChatStyleApps_ParsedAsCommaSeparatedLists()
+    public void EveryAdvancedOverride_IsUsed()
     {
-        string path = WriteEnvFile("""
-            PROMPT_STYLE_APPS = claude, cursor
-            CHAT_STYLE_APPS=whatsapp,telegram
-            """);
+        var settings = new UserSettings
+        {
+            Transcription = new TranscriptionSection { DefaultCleanup = "aggressive" },
+            Advanced = new AdvancedSection
+            {
+                GeminiModelId = "gemini-9.9-pro",
+                DoubleTapWindowMs = 250,
+                AutoHideDelayMs = 3000,
+                ThinkingLevel = "high",
+                StyleNotes = "Prefer \"that\" over \"which\"",
+                EnableToneAwareness = false,
+                PromptStyleApps = ["claude", "cursor"],
+                ChatStyleApps = ["whatsapp"],
+                LocalModelVariant = "some-other-model",
+                LocalNumThreads = 4,
+                CompressUpload = true,
+                SpokenPunctuation = true,
+            },
+        };
 
-        AppConfig config = ConfigLoader.Load(path);
-
-        Assert.Equal(["claude", "cursor"], config.PromptStyleApps);
-        Assert.Equal(["whatsapp", "telegram"], config.ChatStyleApps);
-    }
-
-    [Fact]
-    public void ExplicitTranscriptionMode_OfflineIsTrackedSeparatelyFromDefault()
-    {
-        string path = WriteEnvFile("TRANSCRIPTION_MODE=offline");
-
-        AppConfig config = ConfigLoader.Load(path);
-
-        Assert.Equal("Offline", config.TranscriptionMode);
-        Assert.Equal("Offline", config.ExplicitTranscriptionMode);
-    }
-
-    [Fact]
-    public void UnrecognizedTranscriptionMode_FallsBackToDefaultButIsNotExplicit()
-    {
-        string path = WriteEnvFile("TRANSCRIPTION_MODE=sometimes");
-
-        AppConfig config = ConfigLoader.Load(path);
-
-        Assert.Equal("Online", config.TranscriptionMode);
-        Assert.Null(config.ExplicitTranscriptionMode);
-    }
-
-    [Fact]
-    public void AllKeysPresent_ParsesEachValue()
-    {
-        string path = WriteEnvFile("""
-            GEMINI_API_KEY=test-key-123
-            GEMINI_MODEL_ID=gemini-9.9-pro
-            DOUBLE_TAP_WINDOW_MS=250
-            AUTO_HIDE_DELAY_MS=3000
-            THINKING_LEVEL=high
-            DICTATION_STYLE_NOTES=Prefer "that" over "which"
-            ENABLE_TONE_AWARENESS=false
-            CLEANUP_LEVEL=aggressive
-            """);
-
-        AppConfig config = ConfigLoader.Load(path);
+        AppConfig config = ConfigLoader.Load(settings, geminiApiKey: "test-key-123");
 
         Assert.Equal("test-key-123", config.GeminiApiKey);
+        Assert.True(config.IsApiKeyConfigured);
         Assert.Equal("gemini-9.9-pro", config.GeminiModelId);
         Assert.Equal(250, config.DoubleTapWindowMs);
         Assert.Equal(3000, config.AutoHideDelayMs);
@@ -86,66 +63,80 @@ public class ConfigLoaderTests : IDisposable
         Assert.Equal("Prefer \"that\" over \"which\"", config.StyleNotes);
         Assert.False(config.EnableToneAwareness);
         Assert.Equal("aggressive", config.CleanupLevel);
+        Assert.Equal(["claude", "cursor"], config.PromptStyleApps);
+        Assert.Equal(["whatsapp"], config.ChatStyleApps);
+        Assert.Equal("some-other-model", config.LocalModelVariant);
+        Assert.Equal(4, config.LocalNumThreads);
+        Assert.True(config.CompressUpload);
+        Assert.True(config.SpokenPunctuation);
+    }
+
+    [Theory]
+    [InlineData(0, 2)]
+    [InlineData(-3, 2)]
+    [InlineData(64, 8)]
+    public void LocalNumThreads_IsClamped(int configured, int expected)
+    {
+        var settings = new UserSettings { Advanced = new AdvancedSection { LocalNumThreads = configured } };
+
+        Assert.Equal(expected, ConfigLoader.Load(settings, string.Empty).LocalNumThreads);
     }
 
     [Fact]
-    public void CommentsAndBlankLines_AreIgnored()
+    public void BlankOverrides_FallBackToDefaults()
+    {
+        var settings = new UserSettings
+        {
+            Transcription = new TranscriptionSection { DefaultCleanup = " " },
+            Advanced = new AdvancedSection { GeminiModelId = "", ThinkingLevel = " " },
+        };
+
+        AppConfig config = ConfigLoader.Load(settings, string.Empty);
+
+        Assert.Equal(OnlinePresets.GeminiModel, config.GeminiModelId);
+        Assert.Equal("low", config.ThinkingLevel);
+        Assert.Equal("standard", config.CleanupLevel);
+    }
+
+    [Fact]
+    public void ReadEnvFile_MissingFile_IsNull()
+    {
+        Assert.Null(ConfigLoader.ReadEnvFile(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString())));
+    }
+
+    [Fact]
+    public void ReadEnvFile_SkipsCommentsBlankLinesAndLinesWithoutASeparator()
     {
         string path = WriteEnvFile("""
 
             # this is a comment
+            this line has no separator
             GEMINI_API_KEY=test-key-123
             # GEMINI_MODEL_ID=commented-out-value
 
             """);
 
-        AppConfig config = ConfigLoader.Load(path);
+        IReadOnlyDictionary<string, string> values = ConfigLoader.ReadEnvFile(path)!;
 
-        Assert.Equal("test-key-123", config.GeminiApiKey);
-        Assert.Equal("gemini-3.7-flash", config.GeminiModelId);
+        Assert.Equal("test-key-123", Assert.Single(values).Value);
     }
 
     [Fact]
-    public void LineWithoutEqualsSign_IsSkippedWithoutThrowing()
+    public void ReadEnvFile_TrimsKeysAndValuesAndIgnoresKeyCase()
     {
-        string path = WriteEnvFile("""
-            this line has no separator
-            GEMINI_API_KEY=test-key-123
-            """);
+        string path = WriteEnvFile("  gemini_api_key  =  test-key-123  ");
 
-        AppConfig config = ConfigLoader.Load(path);
+        IReadOnlyDictionary<string, string> values = ConfigLoader.ReadEnvFile(path)!;
 
-        Assert.Equal("test-key-123", config.GeminiApiKey);
+        Assert.Equal("test-key-123", values["GEMINI_API_KEY"]);
     }
 
     [Fact]
-    public void NonIntegerNumericValue_FallsBackToDefault()
+    public void ReadEnvFile_KeepsEqualsSignsInsideTheValue()
     {
-        string path = WriteEnvFile("DOUBLE_TAP_WINDOW_MS=not-a-number");
+        string path = WriteEnvFile("DICTATION_STYLE_NOTES=a=b");
 
-        AppConfig config = ConfigLoader.Load(path);
-
-        Assert.Equal(400, config.DoubleTapWindowMs);
-    }
-
-    [Fact]
-    public void EmptyModelIdValue_FallsBackToDefault()
-    {
-        string path = WriteEnvFile("GEMINI_MODEL_ID=");
-
-        AppConfig config = ConfigLoader.Load(path);
-
-        Assert.Equal("gemini-3.7-flash", config.GeminiModelId);
-    }
-
-    [Fact]
-    public void WhitespaceAroundKeyAndValue_IsTrimmed()
-    {
-        string path = WriteEnvFile("  GEMINI_API_KEY  =  test-key-123  ");
-
-        AppConfig config = ConfigLoader.Load(path);
-
-        Assert.Equal("test-key-123", config.GeminiApiKey);
+        Assert.Equal("a=b", ConfigLoader.ReadEnvFile(path)!["DICTATION_STYLE_NOTES"]);
     }
 
     private string WriteEnvFile(string contents)

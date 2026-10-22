@@ -1,0 +1,398 @@
+University of Amsterdam
+Vrije Universiteit
+VU Amsterdam
+Amsterdam University of Applied Sciences
+Hogeschool van Amsterdam
+Erasmus University
+Delft University of Technology
+TU Delft
+TU Eindhoven
+University of Twente
+Utrecht University
+Leiden University
+Radboud University
+Maastricht University
+Tilburg University
+Wageningen University
+Groningen University
+Nyenrode
+Rotterdam School of Management
+Oxford
+Cambridge
+Imperial College
+London School of Economics
+LSE
+UCL
+King's College
+Edinburgh University
+Warwick
+Durham
+St Andrews
+Manchester University
+Bristol University
+Harvard
+Yale
+Princeton
+Columbia
+Stanford
+MIT
+Caltech
+Berkeley
+UCLA
+Carnegie Mellon
+Cornell
+Brown
+Dartmouth
+Duke
+Northwestern
+Johns Hopkins
+University of Chicago
+NYU
+Georgia Tech
+Michigan
+Wharton
+Kellogg
+Sloan
+INSEAD
+HEC Paris
+Sciences Po
+Sorbonne
+Ecole Polytechnique
+ETH Zurich
+EPFL
+Heidelberg University
+Humboldt University
+Technical University of Munich
+Ludwig Maximilian University
+RWTH Aachen
+KU Leuven
+Ghent University
+Copenhagen University
+Technical University of Denmark
+Lund University
+KTH
+Karolinska
+Uppsala University
+University of Oslo
+NTNU
+Aalto
+University of Helsinki
+Charles University
+Jagiellonian
+Warsaw University
+Bocconi
+Politecnico di Milano
+Sapienza
+Bologna University
+Complutense
+Pompeu Fabra
+IE Business School
+IESE
+Lisbon University
+Tsinghua
+Peking University
+Fudan
+Zhejiang University
+Shanghai Jiao Tong
+Hong Kong University
+National University of Singapore
+Nanyang Technological University
+University of Tokyo
+Kyoto University
+Seoul National University
+KAIST
+IIT Bombay
+IIT Delhi
+IIT Madras
+IIT Kanpur
+IIT Kharagpur
+IISc
+IIM Ahmedabad
+IIM Bangalore
+ISI Kolkata
+JNU
+Delhi University
+BITS Pilani
+University of Melbourne
+University of Sydney
+ANU
+Monash
+University of Toronto
+McGill
+UBC
+Waterloo
+University of Cape Town
+Witwatersrand
+Makerere
+Cairo University
+American University of Beirut
+Technion
+Hebrew University
+Weizmann
+University of Sao Paulo
+UNAM
+University of Buenos Aires
+Erasmus Mundus
+Erasmus
+Fulbright
+Rhodes Scholarship
+Chevening
+Marie Curie
+Horizon Europe
+European Research Council
+NWO
+KNAW
+TNO
+CWI
+ASML
+NXP
+Philips Research
+AMOLF
+Nikhef
+ESA
+ESTEC
+NASA
+JPL
+CERN
+ESO
+DLR
+JAXA
+ISRO
+Roscosmos
+United Nations
+UNESCO
+UNICEF
+UNHCR
+WHO
+FAO
+ILO
+IMF
+World Bank
+WTO
+OECD
+OPEC
+NATO
+European Union
+European Commission
+European Parliament
+European Council
+Eurogroup
+Schengen
+African Union
+ASEAN
+BRICS
+G7
+G20
+Red Cross
+Red Crescent
+Medecins Sans Frontieres
+Amnesty International
+Greenpeace
+WWF
+Oxfam
+Save the Children
+Habitat for Humanity
+Wikipedia
+Wikimedia
+Mozilla
+Apache Foundation
+Linux Foundation
+Free Software Foundation
+Electronic Frontier Foundation
+Creative Commons
+Internet Archive
+OpenStreetMap
+Gates Foundation
+Rockefeller Foundation
+Ford Foundation
+Wellcome Trust
+Nobel Prize
+Fields Medal
+Turing Award
+Pulitzer
+Booker Prize
+Oscar
+Grammy
+Emmy
+BAFTA
+Cannes
+Berlinale
+Sundance
+Golden Globe
+Time magazine
+The Guardian
+The Times
+Daily Telegraph
+BBC
+CNN
+Fox News
+MSNBC
+Al Jazeera
+Deutsche Welle
+France 24
+NOS
+RTL
+NRC
+De Volkskrant
+Trouw
+Het Parool
+De Telegraaf
+Der Spiegel
+Die Zeit
+Le Monde
+Le Figaro
+El Pais
+Corriere della Sera
+New York Times
+Washington Post
+Associated Press
+Reuters
+AFP
+The Hindu
+Times of India
+Hindustan Times
+Dawn
+South China Morning Post
+Straits Times
+Japan Times
+Nikkei Asia
+Haaretz
+Jerusalem Post
+Gulf News
+Guardian
+Politico
+Axios
+Vox
+Wired
+TechCrunch
+The Verge
+Ars Technica
+Engadget
+Hacker News
+Slashdot
+BuzzFeed
+Vice
+HuffPost
+NPR
+PBS
+Netflix
+ESPN
+Sky Sports
+Eurosport
+Formula One
+UEFA
+FIFA
+IOC
+NBA
+ATP
+WTA
+FIA
+UCI
+ICC
+BCCI
+Lloyd's
+Munich Re
+Swiss Re
+Allianz
+AXA
+Zurich Insurance
+Generali
+Aviva
+Prudential
+Aegon
+Nationale-Nederlanden
+Achmea
+Centraal Beheer
+Interpolis
+Menzis
+CZ
+VGZ
+DSW
+Rijksoverheid
+Tweede Kamer
+Eerste Kamer
+Binnenhof
+Gemeente Amsterdam
+GGD
+RIVM
+CBS
+DUO
+UWV
+SVB
+Belastingdienst
+KvK
+Kadaster
+RDW
+DigiD
+Rijkswaterstaat
+ProRail
+Schiphol Group
+Port of Rotterdam
+Albert Heijn
+Jumbo
+Picnic
+Coolblue
+Bol
+Marktplaats
+Thuisbezorgd
+Booking.com
+Adyen
+Mollie
+TomTom
+Elastic
+Mendix
+Bunq
+ING Bank
+Rabobank
+ABN AMRO
+SNS
+Triodos
+Philips
+Unilever
+Heineken
+Shell
+KPN
+Vodafone Ziggo
+Odido
+Tele2
+Randstad
+Ahold
+DSM
+AkzoNobel
+Signify
+Wolters Kluwer
+RELX
+Prosus
+Exor
+Fokker
+Damen
+Vanderlande
+Fugro
+Boskalis
+Van Oord
+Heerema
+SBM Offshore
+Gasunie
+TenneT
+Eneco
+Vattenfall
+Nuon
+Essent
+Engie
+Iberdrola
+Enel
+Orsted
+Vestas
+Siemens Gamesa
+Maersk
+Hapag-Lloyd
+MSC
+CMA CGM
+DHL
+FedEx
+UPS
+PostNL
+DPD
+Royal Mail
+La Poste
+Deutsche Post

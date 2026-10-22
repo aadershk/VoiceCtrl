@@ -8,21 +8,21 @@ public class CustomDictionaryTests
     [Fact]
     public void ReadsOneTermPerLine()
     {
-        IReadOnlyList<string> terms = CustomDictionary.Parse(["Schiphol", "Grafana"]);
+        IReadOnlyList<string> terms = Words(["Schiphol", "Grafana"]);
         Assert.Equal(new[] { "Schiphol", "Grafana" }, terms.ToArray());
     }
 
     [Fact]
     public void TrimsSurroundingWhitespace()
     {
-        IReadOnlyList<string> terms = CustomDictionary.Parse(["  Schiphol\t"]);
+        IReadOnlyList<string> terms = Words(["  Schiphol\t"]);
         Assert.Equal("Schiphol", Assert.Single(terms));
     }
 
     [Fact]
     public void SkipsBlankAndCommentLines()
     {
-        IReadOnlyList<string> terms = CustomDictionary.Parse(["# a comment", "", "   ", "Schiphol"]);
+        IReadOnlyList<string> terms = Words(["# a comment", "", "   ", "Schiphol"]);
         Assert.Equal("Schiphol", Assert.Single(terms));
     }
 
@@ -37,7 +37,7 @@ public class CustomDictionaryTests
     [Fact]
     public void DeduplicatesIgnoringCase_KeepingTheFirstSpelling()
     {
-        IReadOnlyList<string> terms = CustomDictionary.Parse(["Schiphol", "schiphol", "SCHIPHOL"]);
+        IReadOnlyList<string> terms = Words(["Schiphol", "schiphol", "SCHIPHOL"]);
         Assert.Equal("Schiphol", Assert.Single(terms));
     }
 
@@ -45,7 +45,7 @@ public class CustomDictionaryTests
     public void StopsAtTheTermLimit()
     {
         IEnumerable<string> lines = Enumerable.Range(0, CustomDictionary.MaxTerms + 50).Select(i => $"term{i}");
-        Assert.Equal(CustomDictionary.MaxTerms, CustomDictionary.Parse(lines).Count);
+        Assert.Equal(CustomDictionary.MaxTerms, Words(lines).Count);
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class CustomDictionaryTests
         string atLimit = new('a', CustomDictionary.MaxTermLength);
         string overLimit = new('b', CustomDictionary.MaxTermLength + 1);
 
-        IReadOnlyList<string> terms = CustomDictionary.Parse([atLimit, overLimit]);
+        IReadOnlyList<string> terms = Words([atLimit, overLimit]);
 
         Assert.Equal(atLimit, Assert.Single(terms));
     }
@@ -94,12 +94,15 @@ public class CustomDictionaryTests
     public void Format_RoundTripsThroughParse()
     {
         string header = CustomDictionary.ExtractHeader(CustomDictionary.SeedContents);
-        string[] terms = ["Schiphol", "Grafana"];
+        DictionaryEntry[] entries = [new("Schiphol", []), new("Bluepeak", ["blue peak", "blu peak"])];
 
-        string formatted = CustomDictionary.Format(header, terms);
+        string formatted = CustomDictionary.Format(header, entries);
 
         Assert.Equal(header, CustomDictionary.ExtractHeader(formatted));
-        Assert.Equal(terms, CustomDictionary.Parse(formatted.Split('\n')).ToArray());
+        Assert.Contains("Bluepeak | blue peak, blu peak\n", formatted, StringComparison.Ordinal);
+        IReadOnlyList<DictionaryEntry> parsed = CustomDictionary.Parse(formatted.Split('\n'));
+        Assert.Equal(["Schiphol", "Bluepeak"], parsed.Select(e => e.Word));
+        Assert.Equal(["blue peak", "blu peak"], parsed[1].AlsoHeardAs);
     }
 
     [Fact]
@@ -107,4 +110,38 @@ public class CustomDictionaryTests
     {
         Assert.Equal("# header\n", CustomDictionary.Format("# header\n", []));
     }
+
+    [Fact]
+    public void ReadsAlsoHeardAsAfterTheBar()
+    {
+        DictionaryEntry entry = Assert.Single(CustomDictionary.Parse(["Bluepeak | blue peak ,  blu peak"]));
+
+        Assert.Equal("Bluepeak", entry.Word);
+        Assert.Equal(["blue peak", "blu peak"], entry.AlsoHeardAs);
+    }
+
+    [Fact]
+    public void AlsoHeardAs_DropsBlanksRepeatsAndTheWordItself()
+    {
+        IReadOnlyList<string> phrases = CustomDictionary.ParseAlsoHeardAs("Bluepeak", "blue peak, , Blue Peak, bluepeak, blu peak");
+
+        Assert.Equal(["blue peak", "blu peak"], phrases);
+    }
+
+    [Fact]
+    public void AlsoHeardAs_KeepsAtMostTheLimit()
+    {
+        string text = string.Join(", ", Enumerable.Range(0, CustomDictionary.MaxAlsoHeardAs + 3).Select(i => $"heard {i}"));
+
+        Assert.Equal(CustomDictionary.MaxAlsoHeardAs, CustomDictionary.ParseAlsoHeardAs("Word", text).Count);
+    }
+
+    [Fact]
+    public void ALineWithOnlyABar_IsSkipped()
+    {
+        Assert.Empty(CustomDictionary.Parse([" | blue peak"]));
+    }
+
+    private static IReadOnlyList<string> Words(IEnumerable<string> lines) =>
+        CustomDictionary.Parse(lines).Select(entry => entry.Word).ToList();
 }

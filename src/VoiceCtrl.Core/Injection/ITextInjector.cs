@@ -6,6 +6,13 @@ public enum InjectionResult
     ClipboardOnlyElevatedTarget,
 
     /// <summary>
+    /// The focus is known not to take text (the desktop, a button, a read-only field), so Ctrl+V
+    /// would land nowhere. The text is on the clipboard, left in place like the elevated case, and
+    /// the caller says "Select a textbox first" instead of "Pasted".
+    /// </summary>
+    ClipboardOnlyNoTextBox,
+
+    /// <summary>
     /// Neither the paste nor the clipboard write got through, most often because another process
     /// held the clipboard open for longer than the retries allowed. The text is not lost: the
     /// caller keeps it and the tray's "Copy last transcription" can put it back.
@@ -25,4 +32,8 @@ public interface ITextInjector
     /// still in place to paste.
     /// </summary>
     Task<InjectionResult> InjectAsync(string text);
+
+    /// <summary>Press Enter: one Enter key press into the foreground window, after a paste that
+    /// landed.</summary>
+    void PressEnter();
 }

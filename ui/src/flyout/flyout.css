@@ -1,0 +1,66 @@
+/*
+ * The tray flyout (DESIGN §12, the approved VED-24 board "A · VoiceCtrl's own menu"): a 292 px
+ * Menu. The page is transparent; the window is the menu plus room for its shadow.
+ */
+
+html,
+body,
+[data-theme] {
+  background: transparent;
+  overflow: hidden;
+}
+
+/* Room for --pop-shadow (0 12px 32px). Must match TrayFlyoutPlacement.Shadow*Dip in C#. */
+body {
+  padding: 20px 32px 44px;
+  box-sizing: border-box;
+}
+
+.flyout {
+  width: 292px;
+}
+
+.flyout .vc-menu {
+  min-width: 0;
+}
+
+/* The menu takes focus on opening (Flyout.tsx); only its items show a focus ring. */
+.flyout .vc-menu:focus {
+  outline: none;
+}
+
+.flyout-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 12px;
+}
+
+.flyout-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.flyout-status {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.flyout-mode {
+  height: 44px;
+  padding: 0 6px 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.flyout-mode .vc-seg button:focus-visible {
+  outline-offset: -2px;
+}

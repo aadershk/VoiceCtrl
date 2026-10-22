@@ -31,7 +31,7 @@ public class PersonalizationStoreTests : IDisposable
         // exactly as the app did before personalization existed.
         PersonalizationStore store = PersonalizationStore.Empty;
 
-        Assert.Empty(store.DictionaryTerms);
+        Assert.Empty(store.Dictionary);
         Assert.Equal("untouched", store.Snippets.Expand("untouched"));
         Assert.Null(store.Profiles.Resolve("slack"));
     }
@@ -44,7 +44,7 @@ public class PersonalizationStoreTests : IDisposable
             Write("snippets.txt", "brb = be right back\n"),
             Write("profiles.json", """{ "slack": { "tone": "casual" } }"""));
 
-        Assert.Equal("Schiphol", Assert.Single(store.DictionaryTerms));
+        Assert.Equal("Schiphol", Assert.Single(store.Dictionary).Word);
         Assert.Equal("be right back", store.Snippets.Expand("brb"));
         Assert.Equal("casual", store.Profiles.Resolve("slack")?.Tone);
     }
@@ -57,7 +57,7 @@ public class PersonalizationStoreTests : IDisposable
             Path.Combine(_directory, "absent-snippets.txt"),
             Path.Combine(_directory, "absent-profiles.json"));
 
-        Assert.Empty(store.DictionaryTerms);
+        Assert.Empty(store.Dictionary);
         Assert.Equal("untouched", store.Snippets.Expand("untouched"));
         Assert.Null(store.Profiles.Resolve("slack"));
     }
@@ -71,11 +71,11 @@ public class PersonalizationStoreTests : IDisposable
             Write("snippets.txt", string.Empty),
             Write("profiles.json", string.Empty));
 
-        Assert.Single(store.DictionaryTerms);
+        Assert.Single(store.Dictionary);
 
         File.WriteAllText(dictionaryPath, "Schiphol\nGrafana\n");
 
-        Assert.Equal(2, store.DictionaryTerms.Count);
+        Assert.Equal(2, store.Dictionary.Count);
     }
 
     private string Write(string fileName, string contents)

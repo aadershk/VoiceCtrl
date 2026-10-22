@@ -1,42 +1,297 @@
 name: Release
 
+# Packs the Velopack installer and update feed (spec §9, VED-47).
+# - Run by hand (workflow_dispatch): a dry run. It packs, signs, runs the install lifecycle checks
+#   on a clean runner, and uploads the installer as a workflow artifact only.
+# - A v* tag also uploads the release to GitHub Releases as a draft, which is reviewed and
+#   published by hand (VED-27). The dev repo never publishes.
+# Every package gets an ed25519-signed manifest (VED-48), which the app checks before it keeps or
+# installs an update. The private key never enters the job that builds and tests the code: only
+# the sign job reads it, from the `release` environment, which the public repo opens to v* tags
+# alone (VED-27). The dev repo keeps it as a plain repo secret for its trial builds.
+
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Stamp this version instead of <Version> in VoiceCtrl.csproj, e.g. 4.0.0-rc.1 for a trial build (VED-49)"
+        required: false
+        type: string
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  # Keep in step with the Velopack package in src/VoiceCtrl/VoiceCtrl.csproj.
+  VPK_VERSION: "1.2.161"
+  PACK_ID: VoiceCtrlApp
+  # The name the README's Download link uses (releases/latest/download/VoiceCtrl-Setup.exe), so
+  # it never changes between versions.
+  SETUP_NAME: VoiceCtrl-Setup.exe
 
 jobs:
-  build-and-release:
+  package:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      next: ${{ steps.version.outputs.next }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
 
+      # The host build runs `npm ci` and `npm run build` in ui/ and publishes the pages next to
+      # the exe (VoiceCtrl.csproj).
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Version
+        id: version
+        shell: pwsh
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          $version = ([xml](Get-Content src/VoiceCtrl/VoiceCtrl.csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          if (-not $version) { throw 'No <Version> in VoiceCtrl.csproj' }
+          if ($env:GITHUB_REF -like 'refs/tags/v*' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag $env:GITHUB_REF_NAME doesn't match <Version>$version</Version>"
+          }
+          # A trial build (4.0.0-rc.N) is stamped by hand and never from a tag, so the public
+          # 4.0.0 is newer than it and the trial installs update themselves to it.
+          if ($env:VERSION_INPUT) {
+            if ($env:GITHUB_REF -like 'refs/tags/v*') { throw 'A tag build uses <Version>, not the version input' }
+            $version = $env:VERSION_INPUT.Trim()
+          }
+          if (-not ($version -match '^(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?$')) { throw "'$version' isn't major.minor.patch[-prerelease]" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          # The lifecycle checks update to the next patch (never a pre-release), packed from this same commit.
+          "next=$($Matches[1]).$($Matches[2]).$([int]$Matches[3] + 1)" >> $env:GITHUB_OUTPUT
+
       - name: Restore
         run: dotnet restore VoiceCtrl.sln
 
       - name: Test
-        run: dotnet test VoiceCtrl.sln --configuration Release --no-restore
+        run: dotnet test VoiceCtrl.sln -c Release --no-restore
 
+      # publish-next says it is the next patch, as a real update would; only the lifecycle checks use it.
       - name: Publish
-        run: dotnet publish src/VoiceCtrl/VoiceCtrl.csproj -c Release -r win-x64 -p:SelfContained=true -o publish
+        run: |
+          dotnet publish src/VoiceCtrl/VoiceCtrl.csproj -c Release -r win-x64 -p:SelfContained=true -p:Version=${{ steps.version.outputs.version }} -o publish
+          dotnet publish src/VoiceCtrl/VoiceCtrl.csproj -c Release -r win-x64 -p:SelfContained=true -p:Version=${{ steps.version.outputs.next }} -o publish-next
 
-      - name: Zip published output
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version ${{ env.VPK_VERSION }}
+
+      # No previous release is downloaded for deltas: the app always takes the full package, the
+      # one the signed manifest describes byte for byte (spec §9).
+      #
+      # Per user, no admin prompt. The pack ID keeps the install folder (%LocalAppData%\VoiceCtrlApp)
+      # apart from the data root (%LocalAppData%\VoiceCtrl), so uninstall can never wipe the data.
+      # Setup installs WebView2 first where it's missing, and owns the Start Menu shortcut. Keep the
+      # pack ID: installed copies only take updates packed under the same one.
+      #
+      # UpdateFeed/ is a local feed holding this release and the next patch, for the lifecycle
+      # checks' auto-update run. It is never uploaded to a release.
+      - name: Pack
         shell: pwsh
-        run: Compress-Archive -Path publish/* -DestinationPath VoiceCtrl-win-x64.zip
+        run: |
+          function Pack([string] $version, [string] $publishDir, [string] $outputDir) {
+            vpk pack --packId $env:PACK_ID --packVersion $version --packDir $publishDir --outputDir $outputDir `
+              --mainExe VoiceCtrl.exe --packTitle VoiceCtrl --packAuthors VoiceCtrl --icon src/VoiceCtrl/Assets/app-icon.ico `
+              --runtime win-x64 --framework webview2 --shortcuts StartMenuRoot --noPortable --exclude '.*\.(pdb|xml)$'
+            if ($LASTEXITCODE) { throw "vpk pack $version failed" }
+          }
+          Pack ${{ steps.version.outputs.version }} publish Releases
+          Copy-Item Releases UpdateFeed -Recurse
+          Pack ${{ steps.version.outputs.next }} publish-next UpdateFeed
 
-      - name: Create release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+      # The copy of this release's package in UpdateFeed/ is left out (verify puts it back), and so
+      # is the next patch's Setup, which nothing runs: artifact storage is metered on private repos.
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
         with:
-          files: VoiceCtrl-win-x64.zip
-          generate_release_notes: true
+          name: packages
+          retention-days: 1
+          path: |
+            Releases
+            UpdateFeed
+            !UpdateFeed/${{ env.PACK_ID }}-${{ steps.version.outputs.version }}-full.nupkg
+            !UpdateFeed/*Setup.exe
+
+  # The only job that sees the private key. It runs no npm or test code, just SignRelease, built
+  # from this commit, over the packages the package job made.
+  sign:
+    needs: package
+    runs-on: windows-latest
+    environment: release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+
+      # VOICECTRL_ED25519_HANDOVER_KEY is set only while a release changes the app's key (4.0.0):
+      # that release is signed with the retired key the installed copies still trust, and the next
+      # patch, which the new build checks, with the new one. Delete the secret after 4.0.0.
+      - name: Sign
+        shell: pwsh
+        env:
+          VOICECTRL_ED25519_PRIVATE_KEY: ${{ secrets.VOICECTRL_ED25519_PRIVATE_KEY }}
+          VOICECTRL_ED25519_HANDOVER_KEY: ${{ secrets.VOICECTRL_ED25519_HANDOVER_KEY }}
+          VERSION: ${{ needs.package.outputs.version }}
+          NEXT: ${{ needs.package.outputs.next }}
+        run: |
+          dotnet build tools/SignRelease -c Release
+          if ($LASTEXITCODE) { throw 'building SignRelease failed' }
+          function Sign([string] $package, [string] $version, [switch] $Handover) {
+            $mode = @()
+            if ($Handover) { $mode += '--handover' }
+            # Fails when the secret is missing or isn't the key the installed copies check against.
+            dotnet run --project tools/SignRelease -c Release --no-build -- sign $package $version @mode
+            if ($LASTEXITCODE) { throw "signing $version failed" }
+          }
+          Sign "Releases/$env:PACK_ID-$env:VERSION-full.nupkg" $env:VERSION -Handover:([bool] $env:VOICECTRL_ED25519_HANDOVER_KEY)
+          Copy-Item "Releases/$env:PACK_ID-$env:VERSION-manifest.json" UpdateFeed
+          Sign "UpdateFeed/$env:PACK_ID-$env:NEXT-full.nupkg" $env:NEXT
+
+      - name: Upload manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifests
+          retention-days: 1
+          path: |
+            Releases/*-manifest.json
+            UpdateFeed/*-manifest.json
+
+  verify:
+    needs: [package, sign]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+
+      - name: Download manifests
+        uses: actions/download-artifact@v4
+        with:
+          name: manifests
+
+      - name: Restore the update feed
+        shell: pwsh
+        run: Copy-Item "Releases/$env:PACK_ID-${{ needs.package.outputs.version }}-full.nupkg" UpdateFeed
+
+      - name: Install lifecycle checks
+        shell: powershell
+        run: >
+          .github/scripts/installer-lifecycle.ps1
+          -Setup Releases/${{ env.PACK_ID }}-win-Setup.exe
+          -UpdateFeed UpdateFeed
+          -UpdateVersion ${{ needs.package.outputs.next }}
+
+      # A trial build is installed from here; a tag build goes to the draft release instead.
+      - name: Upload installer
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoiceCtrl-${{ needs.package.outputs.version }}-installer
+          path: Releases
+          retention-days: 14
+
+  publish:
+    needs: [package, verify]
+    if: startsWith(github.ref, 'refs/tags/v') && github.repository != 'aadershk/VoiceCtrl-dev'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VERSION: ${{ needs.package.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+
+      - name: Download manifests
+        uses: actions/download-artifact@v4
+        with:
+          name: manifests
+
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version ${{ env.VPK_VERSION }}
+
+      - name: Upload draft release
+        run: >
+          vpk upload github
+          --repoUrl https://github.com/${{ github.repository }}
+          --token ${{ secrets.GITHUB_TOKEN }}
+          --tag v${{ env.VERSION }}
+          --releaseName "VoiceCtrl ${{ env.VERSION }}"
+
+      # The app fetches it from releases/download/v<version>/ before it downloads the package.
+      - name: Upload signed manifest
+        run: gh release upload v${{ env.VERSION }} Releases/${{ env.PACK_ID }}-${{ env.VERSION }}-manifest.json --clobber --repo ${{ github.repository }}
+
+      # Velopack names the installer after the pack ID; the README links the fixed SETUP_NAME. The
+      # notes come from .github/release-notes/v<version>.md when there is one. A draft can't be
+      # looked up by tag through the API, so it is found in the release list.
+      - name: Name the installer and add the notes
+        shell: pwsh
+        run: |
+          $repo = '${{ github.repository }}'
+          $byTag = '.[] | select(.tag_name == "v{0}")' -f $env:VERSION
+          $releaseId = gh api "repos/$repo/releases" --paginate --jq "$byTag | .id" | Select-Object -First 1
+          if (-not $releaseId) { throw "No release for v$env:VERSION" }
+          $setupId = gh api "repos/$repo/releases/$releaseId/assets" --paginate --jq ('.[] | select(.name == "{0}-win-Setup.exe") | .id' -f $env:PACK_ID)
+          if (-not $setupId) { throw "The release has no $env:PACK_ID-win-Setup.exe" }
+          gh api -X PATCH "repos/$repo/releases/assets/$setupId" -f "name=$env:SETUP_NAME" --silent
+          if ($LASTEXITCODE) { throw 'renaming the installer failed' }
+          $notes = ".github/release-notes/v$env:VERSION.md"
+          if (Test-Path $notes) {
+            # tag_name goes along: editing a draft without it detaches the draft from its tag.
+            gh api -X PATCH "repos/$repo/releases/$releaseId" -F "body=@$notes" -f "tag_name=v$env:VERSION" --silent
+            if ($LASTEXITCODE) { throw 'adding the release notes failed' }
+          }
+          $tag = gh api "repos/$repo/releases/$releaseId" --jq .tag_name
+          if ($tag -ne "v$env:VERSION") { throw "The draft lost its tag (it says $tag)" }
+          $hash = (Get-FileHash "Releases/$env:PACK_ID-win-Setup.exe" -Algorithm SHA256).Hash
+          "$env:SETUP_NAME SHA-256: $hash" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append

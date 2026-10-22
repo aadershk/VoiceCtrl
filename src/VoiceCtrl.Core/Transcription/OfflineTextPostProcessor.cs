@@ -40,6 +40,7 @@ public static partial class OfflineTextPostProcessor
     {
         string text = rawText.Replace("\r\n", "\n").Replace('\r', '\n').Trim();
 
+        text = FillerInsidePhrasePattern().Replace(text, " ");
         text = FillerWordPattern().Replace(text, " ");
         text = RepeatedWordPattern().Replace(text, "$1");
 
@@ -54,6 +55,7 @@ public static partial class OfflineTextPostProcessor
         }
 
         text = NewParagraphPattern().Replace(text, "\n\n");
+        text = SkipALinePattern().Replace(text, "\n\n");
         text = NewLinePattern().Replace(text, "\n");
 
         text = TidyPunctuation(text);
@@ -94,6 +96,20 @@ public static partial class OfflineTextPostProcessor
     [GeneratedRegex(@"\b(um+|uh+|erm+)\b", RegexOptions.IgnoreCase)]
     private static partial Regex FillerWordPattern();
 
+    /// <summary>
+    /// A filler the recogniser set off with commas, right after a word no clause ends on: a question's
+    /// opening ("can you"), a modal ("we should"), an article, preposition or possessive ("to the").
+    /// The commas were only there for the filler, so both go with it ("Can you, um, do" is "Can you
+    /// do"). After any other word ("Hi Sarah, um, thanks") one comma stays, as before.
+    /// </summary>
+    [GeneratedRegex(
+        @"(?<=\b(?:(?:can|could|would|will|should|shall|do|does|did|is|are|was|were|have|has|may|might|must)\s+(?:you|i|we|they|he|she|it)|" +
+        @"can|could|would|should|shall|must|might|may|" +
+        @"the|a|an|to|of|for|with|from|in|on|at|by|about|into|my|your|our|their|his|her|its))" +
+        @"[^\S\n]*,[^\S\n]*(?:um+|uh+|erm+)[^\S\n]*,[^\S\n]*",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex FillerInsidePhrasePattern();
+
     [GeneratedRegex(@"\b(\w+)(\s+\1\b)+", RegexOptions.IgnoreCase)]
     private static partial Regex RepeatedWordPattern();
 
@@ -117,8 +133,13 @@ public static partial class OfflineTextPostProcessor
     [GeneratedRegex(BreakCommandGuards + @"\bnew paragraphs?\b(?! of\b)", RegexOptions.IgnoreCase)]
     private static partial Regex NewParagraphPattern();
 
-    [GeneratedRegex(BreakCommandGuards + @"\bnew lines?\b(?! of\b)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(BreakCommandGuards + @"\b(?:new|next) lines?\b(?! of\b)|" + BreakCommandGuards + @"\bline breaks?\b(?! of\b)", RegexOptions.IgnoreCase)]
     private static partial Regex NewLinePattern();
+
+    // "skip a line" is a blank line, the same as a new paragraph. Its own "a" is part of the phrase,
+    // so only "of" afterwards ("skip a line of defence") marks it as ordinary English.
+    [GeneratedRegex(@"\bskip a line\b(?! of\b)", RegexOptions.IgnoreCase)]
+    private static partial Regex SkipALinePattern();
 
     [GeneratedRegex(@"[^\S\n]+([,.;:!?])")]
     private static partial Regex SpaceBeforePunctuationPattern();

@@ -1,0 +1,319 @@
+/*
+ * The Hub frame (research 10 "Structure", DESIGN §5): sidebar 228 px on --bg, the content card
+ * (margin 40/10/10/0, padding 32/44/36, radius 20) as the only scrolling region, and the window
+ * controls floating top right. Components come from the kit; this file only lays them out.
+ */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.hub {
+  position: relative;
+  height: 100%;
+  display: flex;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* The title strip moves the window (spec §2). It sits over the sidebar's logo row too, which has
+   nothing to click; the window controls sit above it with no-drag. */
+.hub-drag {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 5;
+  height: 40px;
+  app-region: drag;
+}
+
+/* Sidebar */
+.hub-sidebar {
+  position: relative;
+  z-index: 4;
+  width: 228px;
+  flex-shrink: 0;
+  padding: 18px 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.hub-brand { display: flex; align-items: center; gap: 10px; padding-left: 6px; }
+.hub-sidebar-spacer { flex-grow: 1; }
+
+/* "Updated to" (DESIGN §12): an outlined card above the status card. */
+.hub-updated {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--r-row);
+  border: 1px solid var(--line-2);
+}
+.hub-updated-head { display: flex; align-items: flex-start; gap: 10px; }
+.hub-updated-head > .vc-icon { flex-shrink: 0; margin-top: 1px; color: var(--ink-2); }
+.hub-updated-text { display: flex; flex-direction: column; gap: 2px; flex-grow: 1; min-width: 0; }
+.hub-updated-title { font-size: 13px; font-weight: 600; color: var(--ink); }
+.hub-updated-hint { font-size: 12px; color: var(--ink-3); }
+/* Pulled into the card's corner, as on the board. */
+.hub-updated-close { margin: -6px -6px 0 0; flex-shrink: 0; }
+
+/* Quick Find: on --bg the board draws the box as an outline rather than a --tint fill. */
+.hub-quickfind { position: relative; }
+.hub-quickfind .vc-search { background: transparent; border: 1px solid var(--line-2); }
+/* Chromium's own clear button isn't on the board; Esc clears. */
+.hub-quickfind input::-webkit-search-cancel-button { display: none; }
+/* The results menu is wider than the sidebar and overlaps the content card. */
+.hub-quickfind-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  width: 300px;
+}
+.hub-find-result {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--r-menu-item);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.hub-find-result-active { background: var(--tint); }
+.hub-find-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-find-where { margin-left: auto; flex-shrink: 0; font-size: 12px; color: var(--ink-3); }
+.hub-find-empty { padding: 10px 12px; font-size: 13px; color: var(--ink-3); }
+
+/* Content card. The toast is placed in the card box, not the scrolling part, so it stays put. */
+.hub-card {
+  position: relative;
+  flex-grow: 1;
+  min-width: 0;
+  margin: 40px 10px 10px 0;
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  display: flex;
+}
+.hub-card > .vc-toast-region { bottom: 18px; }
+.hub-scroll {
+  flex-grow: 1;
+  min-width: 0;
+  padding: 32px 44px 36px;
+  border-radius: inherit;
+}
+/* Maximised or full screen, the header and content share one centred column instead of stretching
+   across the card, so Settings controls stay beside their labels (VED-50). 1046 px is the width
+   Wispr Flow's Hub caps its pages at; the window opens at 1350 x 850 (SurfacePage.Hub), where the
+   content is about 1024 px, so the cap only matters on larger windows. */
+.hub-stage { max-width: 1046px; margin-inline: auto; }
+/* §10 screen change: clicks are ignored while the old screen leaves. */
+.hub-stage-leaving { pointer-events: none; }
+
+/* Screens: blocks 28 px apart. */
+.hub-screen { display: flex; flex-direction: column; gap: 28px; }
+.hub-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.hub-header-text { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.hub-header-actions { position: relative; display: flex; gap: 8px; flex-shrink: 0; }
+.hub-group { display: flex; flex-direction: column; }
+
+/* Settings rows (research 10 Settings). A group's note stands in for a row's description. */
+.vc-setting-label .hub-setting-note { color: var(--warn-ink); }
+.hub-setting-muted { font-size: 14px; color: var(--ink-3); }
+
+/* A button beside a switch (Sound Cues' Play), and the Automatic updates row (DESIGN §12). */
+.hub-control-pair,
+.hub-update { display: flex; align-items: center; gap: 12px; }
+.hub-update-busy { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-3); }
+.hub-update-percent { min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* The About card that closes Settings (DESIGN §12). */
+.hub-about {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 16px 16px 18px;
+  border-radius: 16px;
+  background: var(--tint);
+}
+.hub-about-text { display: flex; flex-direction: column; gap: 2px; flex-grow: 1; min-width: 0; }
+.hub-about-text b { font-size: 15px; font-weight: 500; color: var(--ink); }
+.hub-about-text span { font-size: 13px; color: var(--ink-3); }
+
+/* "Press a key": the board's secondary button with an --ink border, as a focused field. */
+.hub-key-listening {
+  height: 32px;
+  min-width: 150px;
+  padding: 0 14px;
+  border: 1px solid var(--ink);
+  border-radius: var(--r-control);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Microphone: a 260 px dropdown beside the live three-bar level in the logo's coral. */
+.hub-mic-button { width: 260px; justify-content: space-between; }
+.hub-mic-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-mic-level { display: inline-flex; align-items: center; gap: 3px; height: 18px; color: var(--coral); }
+.hub-mic-level i {
+  display: block;
+  width: 3px;
+  border-radius: 2px;
+  background: currentColor;
+  transform: scaleY(.3);
+  transition: transform 90ms linear;
+}
+.hub-mic-level i:nth-child(1) { height: 9px; }
+.hub-mic-level i:nth-child(2) { height: 16px; }
+.hub-mic-level i:nth-child(3) { height: 12px; }
+:root[data-reduced-motion="true"] .hub-mic-level i { transition: none; }
+.vc-setting .vc-menu { max-width: 420px; }
+
+/* Transcription (slice 22). Gemini key: the masked key and what is known of it, or the field. */
+.hub-key-input { width: 240px; height: 34px; letter-spacing: .04em; }
+.hub-other-address { width: 210px; height: 34px; }
+.hub-other-model { width: 130px; height: 34px; }
+.hub-key-input::placeholder { letter-spacing: 0; }
+.hub-key-mask { font-size: 14px; letter-spacing: .02em; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.hub-key-ok { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 500; color: var(--ink); }
+.hub-key-checking { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-3); }
+/* Offline models: the pack dropdown, and the percentage beside the download bar. */
+.hub-pack-button { width: 200px; justify-content: space-between; }
+.hub-pack-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-pack-percent { min-width: 34px; text-align: right; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* Dictations (slice 17): the board's 232 px search and 38 px ··· button; day groups 28 px apart. */
+.dict-search { width: 232px; }
+.dict-more { width: 38px; height: 38px; }
+.dict-groups { display: flex; flex-direction: column; gap: 28px; }
+/* Several kept failures read as one stack, not as separate blocks. */
+.dict-notices { display: flex; flex-direction: column; gap: 12px; }
+/* Dictionary and Snippets (research 10): the count heading with its Filter, then the rows. */
+.hub-list { display: flex; flex-direction: column; }
+.hub-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+.hub-list-heading .vc-group { margin: 0; }
+.hub-filter { width: 200px; height: 32px; font-size: 13px; }
+.hub-list-rows { display: flex; flex-direction: column; }
+.hub-list .vc-empty { margin-top: 24px; }
+.hub-editor-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.hub-editor-trigger { max-width: 320px; }
+.hub-snippet-arrow { flex-shrink: 0; margin-left: -6px; color: var(--ink-3); }
+/* Quick Find landing on "Import or export": the button flashes a --tint ring for 1.6 s. */
+.hub-landing { display: inline-flex; border-radius: var(--r-control); }
+.hub-landing-flash { animation: hub-flash-ring 1600ms var(--ease-out); }
+@keyframes hub-flash-ring {
+  0%, 40% { box-shadow: 0 0 0 5px var(--tint); }
+  100% { box-shadow: 0 0 0 5px transparent; }
+}
+/* Profiles (research 10): an initial tile per app, the editor's app line and Email Layout panel. */
+.hub-app-tile {
+  width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px; background: var(--tint);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--ink-2);
+}
+.vc-editor .hub-app-tile { background: var(--panel); }
+.hub-app-tile-empty { color: var(--ink-3); }
+.hub-app-picker { display: flex; flex-direction: column; gap: 6px; }
+.hub-app-picker-line { display: flex; align-items: center; gap: 12px; }
+.hub-app-picker-name { font-size: 15px; font-weight: 600; color: var(--ink); }
+.hub-menu-meta { margin-left: auto; padding-left: 16px; }
+.hub-switch-panel { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 12px; background: var(--panel); }
+.hub-switch-panel-text { flex-grow: 1; display: flex; flex-direction: column; gap: 2px; }
+.hub-switch-panel-text b { font-size: 14px; font-weight: 600; color: var(--ink); }
+.hub-danger-ghost { color: var(--danger); }
+.hub-danger-ghost:hover:not(:disabled) { color: var(--danger); }
+
+/* Dictionary Suggestions (slice 24, research 10 "Dictionary"): the card of chips, and the dashed
+   Turn on card while the setting is off. */
+.hub-suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: var(--r-card);
+  background: var(--tint);
+}
+.hub-suggest-head { display: flex; align-items: center; gap: 10px; }
+.hub-suggest-head > .vc-icon { flex-shrink: 0; color: var(--ink-2); }
+.hub-suggest-title { font-size: 14px; font-weight: 600; color: var(--ink); }
+.hub-suggest-hint { flex-grow: 1; font-size: 13px; color: var(--ink-3); }
+.hub-suggest-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.hub-suggest-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  border-radius: 10px;
+  background: var(--panel);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.hub-suggest-count { margin: 0 6px; font-size: 12px; font-weight: 400; color: var(--ink-3); }
+.hub-suggest-off {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px 14px 18px;
+  border-radius: 14px;
+  border: 1px dashed var(--line-2);
+}
+.hub-suggest-off > .vc-icon { flex-shrink: 0; color: var(--ink-3); }
+.hub-suggest-off-text { flex-grow: 1; font-size: 14px; color: var(--ink-2); }
+
+/* Style (ticket 56): one card per kind of app, its Style, a live example and its apps; "Your name". */
+.hub-style-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
+.hub-style-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: var(--r-card);
+  background: var(--tint);
+}
+.hub-style-head { display: flex; flex-direction: column; gap: 2px; }
+.hub-style-title { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+.hub-style-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.hub-style-example {
+  flex-grow: 1;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--panel);
+}
+.hub-style-example figcaption { margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--ink-3); }
+.hub-style-example p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
+.hub-style-apps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border-radius: var(--r-control); }
+.hub-style-app {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--panel);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.hub-style-app:hover { color: var(--ink); background: var(--hover); }
+.hub-style-app:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.hub-style-app-moved { color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-2); }
+.hub-style-name { margin-top: 24px; max-width: 420px; }
+.hub-style-name-field { display: flex; flex-direction: column; gap: 6px; border-radius: var(--r-control); }
+.hub-style-name-field .vc-meta { display: inline-flex; align-items: center; gap: 6px; }
+.hub-style-card-plain { background: transparent; box-shadow: inset 0 0 0 1px var(--line-2); }
+.hub-style-card-plain .hub-style-app, .hub-style-card-plain .hub-style-example { background: var(--tint); }

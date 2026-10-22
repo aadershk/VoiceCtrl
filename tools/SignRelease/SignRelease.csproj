@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Signs a release's update manifest in CI (spec §9), and makes the keypair once. The format
+       lives in Core's ReleaseSigning, next to the check the app runs. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>VoiceCtrl.Tools.SignRelease</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\VoiceCtrl.Core\VoiceCtrl.Core.csproj" />
+  </ItemGroup>
+
+</Project>

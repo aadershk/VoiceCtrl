@@ -59,6 +59,20 @@ public static class HotkeyKeyCatalog
         ["Right Ctrl+Space"] = "Toggles the input method on some Windows setups.",
     };
 
+    public const string LanguageSwitchWarning = "On setups with several keyboard layouts, Windows may switch the input language.";
+
+    /// <summary>Windows shortcuts that act on key-down and cannot be swallowed reliably: any Win
+    /// key held with L (lock) or D (desktop). Ctrl+Alt+Del never reaches a keyboard hook at all.</summary>
+    public static bool IsWindowsOwned(IReadOnlyCollection<int> vks) =>
+        vks.Any(vk => vk is NativeMethods.VK_LWIN or NativeMethods.VK_RWIN) && vks.Any(vk => vk is 0x4C or 0x44);
+
+    public static string? CombinationWarningFor(IReadOnlyCollection<int> vks)
+    {
+        bool ctrl = vks.Any(vk => vk is NativeMethods.VK_LCONTROL or NativeMethods.VK_RCONTROL);
+        bool shift = vks.Any(vk => vk is NativeMethods.VK_LSHIFT or NativeMethods.VK_RSHIFT);
+        return vks.Count == 2 && ctrl && shift ? LanguageSwitchWarning : null;
+    }
+
     public static string? WarningFor(string key) => KeyWarnings.GetValueOrDefault(key);
 
     public static string? ChordWarningFor(string prefix, string secondKeyLabel) =>

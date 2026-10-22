@@ -1,0 +1,368 @@
+/*
+ * The Mini Overlay (DESIGN §9–10), ported from the approved board (prototypes/11-overlay Mini).
+ * Only transform and opacity animate (research 15, rule 3); colour fades are the one exception
+ * §10 allows. The page is transparent: the window shows nothing but the pill.
+ */
+
+:root {
+  /* Must match OverlayGeometry.PillBottomInsetDip in C#. */
+  --pill-bottom: 32px;
+  /* Opaque parts inside one semi-transparent wrapper, so overlapping caps and middle never seam. */
+  --ov-solid: #FFFCF7;
+  --ov-alpha: .96;
+  --ov-ink: #221D18;
+  --ov-ink-2: #5C5249;
+  --ov-hover: rgba(34, 29, 24, .07);
+  --ov-filter: drop-shadow(0 8px 12px rgba(74, 52, 30, .22)) drop-shadow(0 1px 3px rgba(74, 52, 30, .14));
+}
+
+[data-theme="dark"] {
+  --ov-solid: #16171C;
+  --ov-alpha: .94;
+  --ov-ink: #EDEEF2;
+  --ov-ink-2: #A9ABB6;
+  --ov-hover: rgba(237, 238, 242, .09);
+  --ov-filter: drop-shadow(0 8px 12px rgba(0, 0, 0, .45)) drop-shadow(0 1px 3px rgba(0, 0, 0, .3));
+}
+
+html,
+body,
+[data-theme] {
+  background: transparent;
+  overflow: hidden;
+}
+
+.ov-stage {
+  position: relative;
+  width: 320px;
+  height: 96px;
+  font-family: var(--font-text);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--ov-ink);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* :where() keeps the reset at zero specificity, so each button's own padding wins. */
+.ov-stage :where(button) {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: default;
+}
+
+.ov-stage .vc-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The pill's centre point; everything inside is placed relative to it. */
+.ov-pos {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--pill-bottom) + 16px);
+  width: 0;
+  height: 0;
+}
+
+/* Appear: rise 10 px and scale .94 → 1 on the spring. Leave: 180 ms ease-in to .97, dropping
+   3 px (12 px after Cancel). The resting (hidden) pose is the appear's starting pose. */
+.ov-vis {
+  position: absolute;
+  opacity: 0;
+  transform: translateY(var(--move)) scale(var(--scale-from));
+  transform-origin: 0 0;
+  transition: opacity var(--dur-exit) var(--ease-in), transform var(--dur-exit) var(--ease-in);
+}
+.ov-vis.on {
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--dur-shape) var(--ease-spring), transform var(--dur-shape) var(--ease-spring);
+}
+.ov-vis.out { transform: translateY(3px) scale(.97); }
+.ov-vis.cancel { transform: translateY(12px) scale(.97); }
+
+/* "Always show the Overlay" (DESIGN §9; research 10): the grey resting handle, 48 × 8, its bottom
+   on the pill's bottom edge. The tint follows the desktop (Windows' taskbar setting), not the
+   app's Theme, because the handle sits on the desktop just above the taskbar. Under the pointer
+   it crossfades into the Ready tile: the tile fades in on --dur-fade and grows on the spring, and
+   the handle narrows to 60% as it fades. */
+.ov-handle {
+  position: absolute;
+  top: 8px;
+  left: -24px;
+  width: 48px;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(92, 92, 96, .78);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .55);
+  opacity: 0;
+  transform: scaleX(.6);
+  transform-origin: 50% 50%;
+  transition: opacity var(--dur-fade) var(--ease-out), transform var(--dur-shape) var(--ease-spring);
+}
+.ov-handle.on { opacity: 1; transform: none; }
+[data-desktop="dark"] .ov-handle {
+  background: rgba(214, 216, 222, .6);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .45);
+}
+
+.ov-vis.ov-from-handle { transform: scale(var(--scale-from)); }
+.ov-vis.ov-from-handle,
+.ov-vis.ov-from-handle.on { transition: opacity var(--dur-fade) var(--ease-out), transform var(--dur-shape) var(--ease-spring); }
+.ov-vis.ov-from-handle.on { transform: none; }
+
+.ov-shape {
+  filter: var(--ov-filter);
+  opacity: var(--ov-alpha);
+}
+
+.ov-part {
+  position: absolute;
+  top: -16px;
+  left: 0;
+  height: 32px;
+  background: var(--ov-solid);
+  border: 1px solid var(--ov-line);
+  transition:
+    transform var(--dur-shape) var(--ease-spring),
+    background-color var(--dur-fade) var(--ease-out),
+    border-color var(--dur-fade) var(--ease-out);
+}
+.ov-nudge .ov-part {
+  transition-duration: var(--dur-nudge), var(--dur-fade), var(--dur-fade);
+  transition-timing-function: var(--ease-nudge), var(--ease-out), var(--ease-out);
+}
+.ov-cap-l { width: 11px; border-right: 0; border-radius: 11px 0 0 11px; z-index: 2; }
+.ov-cap-r { width: 11px; border-left: 0; border-radius: 0 11px 11px 0; z-index: 2; }
+.ov-mid { width: 100px; border-left: 0; border-right: 0; transform-origin: 0 50%; z-index: 1; }
+
+/* One layer per state. Outgoing content fades out in 132 ms; incoming fades in over 220 ms
+   after 66 ms, while the layer slides with the pill on the spring. */
+.ov-layer {
+  position: absolute;
+  top: -16px;
+  left: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 132ms var(--ease-out), transform var(--dur-shape) var(--ease-spring);
+}
+.ov-layer.on {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity var(--dur-fade) var(--ease-out) 66ms, transform var(--dur-shape) var(--ease-spring);
+}
+.ov-nudge .ov-layer.on { transition-duration: var(--dur-fade), var(--dur-nudge); transition-timing-function: var(--ease-out), var(--ease-nudge); }
+
+/* The Overlay window is alive and transparent while hidden, so an infinite animation in a layer
+   that isn't showing would keep both the renderer and the GPU awake for nothing (VED-49 measured
+   about 7% of a core at idle). Only the layer on screen animates. */
+.ov-layer:not(.on) .ov-bar,
+.ov-layer:not(.on) .ov-dot,
+.ov-layer:not(.on) .ov-trace { animation-play-state: paused; }
+
+[data-layer="ready"],
+[data-layer="pasted"] { width: 32px; justify-content: center; }
+[data-layer="listening"] { width: 152px; padding: 0 4px 0 12px; gap: 8px; }
+[data-layer="transcribing"] { width: 88px; padding: 0 4px 0 12px; gap: 8px; }
+/* Writing an Email request's email (ticket 57): the words after the bars widen the pill by
+   WRITING_EXTRA in layout.ts. */
+.ov-writing [data-layer="transcribing"] { width: 162px; }
+.ov-writing-words { display: none; font-weight: 500; color: var(--ov-ink-2); }
+.ov-writing .ov-writing-words { display: inline; }
+[data-layer="noSpeech"] { width: 112px; padding: 0 12px; gap: 6px; }
+[data-layer="noSpeech"] .vc-icon { color: var(--ov-ink-2); }
+[data-layer="failed"] { width: max-content; min-width: 196px; padding: 0 4px 0 12px; gap: 6px; }
+[data-layer="notice"] { width: max-content; padding: 0 12px; }
+/* "Still transcribing", "Still writing" and "Taking longer than usual" end in Cancel, which sits where the X does. */
+[data-layer="notice"].ov-has-action { padding: 0 4px 0 12px; }
+/* The Finish tick sits against the X: the layer's 8 px gap less 4. */
+.ov-finish { margin-right: -4px; }
+
+/* Hover-only controls (the timer, divider and ✕) fade like content while the bar grows. */
+.ov-hx { opacity: 0; pointer-events: none; transition: opacity 132ms var(--ease-out); }
+.ov-hover .ov-hx { opacity: 1; transition: opacity var(--dur-fade) var(--ease-out) 66ms; }
+/* Only the layer on screen takes the hover: a child's own pointer-events beats the hidden layer's
+   none, so the Transcribing layer's invisible ✕ would otherwise sit over the Listening ✕ and take
+   the hit-test (VED-68). */
+.ov-hover .ov-layer.on .ov-hx { pointer-events: auto; }
+
+.ov-bars { display: flex; align-items: center; gap: 3px; height: 16px; }
+.ov-bar { width: 3px; border-radius: 1.5px; background: var(--coral); transform-origin: center; flex-shrink: 0; }
+.ov-logo .ov-bar:nth-child(1) { height: 7px; }
+.ov-logo .ov-bar:nth-child(2) { height: 14px; }
+.ov-logo .ov-bar:nth-child(3) { height: 10px; }
+.ov-level .ov-bar:nth-child(1) { height: 9px; }
+.ov-level .ov-bar:nth-child(2) { height: 16px; }
+.ov-level .ov-bar:nth-child(3) { height: 12px; }
+.ov-wave { margin-left: 8px; }
+.ov-wave .ov-bar { height: 11px; background: var(--ov-ink-2); animation: ov-wave 1200ms ease-in-out infinite; }
+.ov-wave .ov-bar:nth-child(2) { animation-delay: 150ms; }
+.ov-wave .ov-bar:nth-child(3) { animation-delay: 300ms; }
+
+/* A rewrite by voice: the same pill, but not recording-red (the page's ink instead), so a glance
+   tells an edit from a Dictation. */
+.ov-rewrite .ov-dot,
+.ov-rewrite .ov-level .ov-bar { background: var(--ov-ink); }
+.ov-rewrite .ov-trace { background: linear-gradient(90deg, transparent, var(--ov-ink), transparent); }
+
+/* Hands-free lock (VED-74): the Listening look plus a small padlock beside the bars. The layer's
+   width grows by the lock's room (LOCK_EXTRA in layout.ts). */
+.ov-lock { display: none; align-items: center; color: var(--ov-ink-2); flex-shrink: 0; }
+.ov-locked .ov-lock { display: flex; }
+
+.ov-dot { width: 6px; height: 6px; border-radius: 3px; background: var(--coral); flex-shrink: 0; animation: ov-pulse 1600ms ease-in-out infinite; }
+
+.ov-track { position: absolute; left: 17px; bottom: 4px; width: 22px; height: 2px; overflow: hidden; border-radius: 1px; }
+.ov-trace {
+  display: block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, rgba(240, 71, 43, 0), var(--coral), rgba(240, 71, 43, 0));
+  animation: ov-trace 1100ms cubic-bezier(.45, 0, .55, 1) infinite;
+}
+
+.ov-tile {
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--dur-hover) var(--ease-out);
+}
+.ov-tile .ov-bars { gap: 2.5px; }
+
+.ov-timer { margin-left: 4px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ov-ink-2); }
+.ov-sep { width: 1px; height: 14px; background: var(--ov-line); flex-shrink: 0; }
+[data-layer="transcribing"] .ov-sep { margin-left: 6px; }
+[data-layer="failed"] .ov-sep { margin-left: 2px; }
+
+.ov-x,
+.ov-finish {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ov-ink-2);
+  transition: background-color var(--dur-hover) var(--ease-out), color var(--dur-hover) var(--ease-out),
+    transform var(--dur-hover) var(--ease-out), opacity 132ms var(--ease-out);
+}
+.ov-x.is-hover,
+.ov-finish.is-hover { background: var(--ov-hover); color: var(--ov-ink); }
+
+.ov-check { width: 17px; height: 17px; fill: none; stroke: var(--coral); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.ov-reason { flex-grow: 1; font-weight: 500; }
+
+.ov-retry {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-weight: 600;
+  background: var(--btn) !important;
+  color: var(--btn-ink) !important;
+  transition: transform var(--dur-hover) var(--ease-out), opacity var(--dur-hover) var(--ease-out);
+}
+.ov-retry.is-hover { opacity: .9; }
+
+.ov-notice { display: flex; align-items: center; gap: 6px; }
+.ov-has-action .ov-notice { gap: 8px; }
+.ov-notice > .vc-icon { color: var(--ov-ink-2); }
+.ov-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  margin: 0 -6px;
+  padding: 0 6px;
+  border-radius: 7px;
+  font-weight: 500;
+  transition: background-color var(--dur-hover) var(--ease-out), transform var(--dur-hover) var(--ease-out);
+}
+.ov-link .vc-icon { color: var(--coral); }
+.ov-link.is-hover { background: var(--ov-hover); }
+
+.ov-ghost {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-weight: 600;
+  color: var(--ov-ink-2);
+  transition: background-color var(--dur-hover) var(--ease-out), color var(--dur-hover) var(--ease-out),
+    transform var(--dur-hover) var(--ease-out);
+}
+.ov-ghost.is-hover { background: var(--ov-hover); color: var(--ov-ink); }
+
+/* Press happens on pointer down (§10 rule 5). */
+.ov-tile.is-pressed,
+.ov-x.is-pressed,
+.ov-finish.is-pressed,
+.ov-retry.is-pressed,
+.ov-ghost.is-pressed,
+.ov-link.is-pressed { transform: scale(var(--press)); opacity: var(--press-opacity); }
+
+/* The polite live region: read by screen readers, never seen. */
+.ov-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Geometry set while the pill is invisible must not animate. */
+.ov-instant .ov-part,
+.ov-instant .ov-layer { transition: none !important; }
+
+@keyframes ov-wave { 0%, 100% { transform: scaleY(.35); opacity: .5; } 50% { transform: scaleY(1); opacity: 1; } }
+@keyframes ov-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes ov-trace { from { transform: translateX(-14px); } to { transform: translateX(22px); } }
+
+/* Reduced motion (§10): no movement or scaling; appear/disappear are 120/100 ms fades; the width
+   jumps (the tokens make --dur-shape 0); the wave, sweep and dot pulse stop. The level still moves. */
+:root[data-reduced-motion="true"] .ov-vis,
+:root[data-reduced-motion="true"] .ov-vis.out,
+:root[data-reduced-motion="true"] .ov-vis.cancel { transform: none; transition: opacity 100ms linear; }
+:root[data-reduced-motion="true"] .ov-vis.on { transition: opacity 120ms linear; }
+:root[data-reduced-motion="true"] .ov-vis.ov-from-handle,
+:root[data-reduced-motion="true"] .ov-vis.ov-from-handle.on { transform: none; transition: opacity 120ms linear; }
+:root[data-reduced-motion="true"] .ov-handle,
+:root[data-reduced-motion="true"] .ov-handle.on { transform: none; transition: opacity 120ms linear; }
+:root[data-reduced-motion="true"] .ov-wave .ov-bar,
+:root[data-reduced-motion="true"] .ov-dot,
+:root[data-reduced-motion="true"] .ov-trace { animation: none; }
+:root[data-reduced-motion="true"] .ov-trace { transform: translateX(4px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ov-vis,
+  .ov-vis.out,
+  .ov-vis.cancel { transform: none; transition: opacity 100ms linear; }
+  .ov-vis.on { transition: opacity 120ms linear; }
+  .ov-vis.ov-from-handle,
+  .ov-vis.ov-from-handle.on { transform: none; transition: opacity 120ms linear; }
+  .ov-handle,
+  .ov-handle.on { transform: none; transition: opacity 120ms linear; }
+  .ov-wave .ov-bar,
+  .ov-dot,
+  .ov-trace { animation: none; }
+  .ov-trace { transform: translateX(4px); }
+}

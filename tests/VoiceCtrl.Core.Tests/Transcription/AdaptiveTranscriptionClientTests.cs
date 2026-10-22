@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http;
+using VoiceCtrl.Core.Online;
 using VoiceCtrl.Core.Config;
+using VoiceCtrl.Core.Status;
 using VoiceCtrl.Core.Transcription;
 using Xunit;
 
@@ -23,13 +25,29 @@ public class AdaptiveTranscriptionClientTests
     }
 
     [Fact]
+    public async Task OfflineOnly_UsesTheLocalClient_EvenInOnlineMode_AndDisposingItKeepsTheModel()
+    {
+        var online = new FakeTranscriptionClient(result: "online");
+        var offline = new FakeTranscriptionClient(result: "offline");
+        AdaptiveTranscriptionClient client = CreateClient(TranscriptionModePreference.Online, online, offline, isApiKeyConfigured: true);
+        ITranscriptionClient offlineOnly = client.OfflineOnly;
+
+        string? result = await offlineOnly.TranscribeAsync([]);
+        offlineOnly.Dispose();
+
+        Assert.Equal("offline", result);
+        Assert.Equal(0, online.CallCount);
+        Assert.Equal("offline", await client.OfflineOnly.TranscribeAsync([]));
+    }
+
+    [Fact]
     public async Task OnlinePreference_AlwaysUsesOnlineClient_NoFallbackOnFailure()
     {
-        var online = new FakeTranscriptionClient(exception: new GeminiApiException(HttpStatusCode.BadRequest, "bad request"));
+        var online = new FakeTranscriptionClient(exception: new OnlineServiceException(HttpStatusCode.BadRequest, "bad request"));
         var offline = new FakeTranscriptionClient(result: "offline");
         AdaptiveTranscriptionClient client = CreateClient(TranscriptionModePreference.Online, online, offline, isApiKeyConfigured: true);
 
-        await Assert.ThrowsAsync<GeminiApiException>(() => client.TranscribeAsync([]));
+        await Assert.ThrowsAsync<OnlineServiceException>(() => client.TranscribeAsync([]));
 
         Assert.Equal(0, offline.CallCount);
     }
@@ -84,13 +102,13 @@ public class AdaptiveTranscriptionClientTests
     {
         // The deliberate scoping: a real API-level error must stay visible, not get masked as
         // "fell back to offline, still worked."
-        var online = new FakeTranscriptionClient(exception: new GeminiApiException(HttpStatusCode.BadRequest, "thinkingLevel not supported"));
+        var online = new FakeTranscriptionClient(exception: new OnlineServiceException(HttpStatusCode.BadRequest, "thinkingLevel not supported"));
         var offline = new FakeTranscriptionClient(result: "offline");
         AdaptiveTranscriptionClient client = CreateClient(TranscriptionModePreference.Auto, online, offline, isApiKeyConfigured: true);
         bool fellBack = false;
         client.FellBackToOffline += () => fellBack = true;
 
-        await Assert.ThrowsAsync<GeminiApiException>(() => client.TranscribeAsync([]));
+        await Assert.ThrowsAsync<OnlineServiceException>(() => client.TranscribeAsync([]));
 
         Assert.Equal(0, offline.CallCount);
         Assert.False(fellBack);
@@ -101,7 +119,7 @@ public class AdaptiveTranscriptionClientTests
     {
         // 503 "high demand" is the exact shape of error seen in production: transient, worth a
         // fallback instead of failing the whole dictation outright.
-        var online = new FakeTranscriptionClient(exception: new GeminiApiException(
+        var online = new FakeTranscriptionClient(exception: new OnlineServiceException(
             HttpStatusCode.ServiceUnavailable, "This model is currently experiencing high demand. Please try again shortly."));
         var offline = new FakeTranscriptionClient(result: "offline");
         AdaptiveTranscriptionClient client = CreateClient(TranscriptionModePreference.Auto, online, offline, isApiKeyConfigured: true);
@@ -119,7 +137,7 @@ public class AdaptiveTranscriptionClientTests
     [Fact]
     public async Task Auto_TransientApiException_TooManyRequests_FallsBackToLocalAndRaisesEvent()
     {
-        var online = new FakeTranscriptionClient(exception: new GeminiApiException(HttpStatusCode.TooManyRequests, "rate limited"));
+        var online = new FakeTranscriptionClient(exception: new OnlineServiceException(HttpStatusCode.TooManyRequests, "rate limited"));
         var offline = new FakeTranscriptionClient(result: "offline");
         AdaptiveTranscriptionClient client = CreateClient(TranscriptionModePreference.Auto, online, offline, isApiKeyConfigured: true);
 
@@ -134,7 +152,7 @@ public class AdaptiveTranscriptionClientTests
         var offlineForBadGateway = new FakeTranscriptionClient(result: "offline");
         AdaptiveTranscriptionClient badGatewayClient = CreateClient(
             TranscriptionModePreference.Auto,
-            new FakeTranscriptionClient(exception: new GeminiApiException(HttpStatusCode.BadGateway, "bad gateway")),
+            new FakeTranscriptionClient(exception: new OnlineServiceException(HttpStatusCode.BadGateway, "bad gateway")),
             offlineForBadGateway,
             isApiKeyConfigured: true);
         Assert.Equal("offline", await badGatewayClient.TranscribeAsync([]));
@@ -142,7 +160,7 @@ public class AdaptiveTranscriptionClientTests
         var offlineForGatewayTimeout = new FakeTranscriptionClient(result: "offline");
         AdaptiveTranscriptionClient gatewayTimeoutClient = CreateClient(
             TranscriptionModePreference.Auto,
-            new FakeTranscriptionClient(exception: new GeminiApiException(HttpStatusCode.GatewayTimeout, "gateway timeout")),
+            new FakeTranscriptionClient(exception: new OnlineServiceException(HttpStatusCode.GatewayTimeout, "gateway timeout")),
             offlineForGatewayTimeout,
             isApiKeyConfigured: true);
         Assert.Equal("offline", await gatewayTimeoutClient.TranscribeAsync([]));
@@ -151,13 +169,13 @@ public class AdaptiveTranscriptionClientTests
     [Fact]
     public async Task Auto_CallerCancellation_TransientApiException_PropagatesInsteadOfFallingBack()
     {
-        var online = new FakeTranscriptionClient(exception: new GeminiApiException(HttpStatusCode.ServiceUnavailable, "high demand"));
+        var online = new FakeTranscriptionClient(exception: new OnlineServiceException(HttpStatusCode.ServiceUnavailable, "high demand"));
         var offline = new FakeTranscriptionClient(result: "offline");
         AdaptiveTranscriptionClient client = CreateClient(TranscriptionModePreference.Auto, online, offline, isApiKeyConfigured: true);
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        await Assert.ThrowsAsync<GeminiApiException>(() => client.TranscribeAsync([], cts.Token));
+        await Assert.ThrowsAsync<OnlineServiceException>(() => client.TranscribeAsync([], cts.Token));
 
         Assert.Equal(0, offline.CallCount);
     }
@@ -215,12 +233,87 @@ public class AdaptiveTranscriptionClientTests
         Assert.Equal(1, offline.PrewarmCount);
     }
 
+    // The status card's "API key not working · Using Offline until it's fixed" (Hub frame slice).
+
+    [Fact]
+    public async Task Auto_KeyRefused_ReportsItAndUsesOfflineForThisDictation()
+    {
+        var online = new FakeTranscriptionClient(exception: new OnlineServiceException(HttpStatusCode.BadRequest, "API key not valid. Please pass a valid API key."));
+        var offline = new FakeTranscriptionClient(result: "offline");
+        var keyHealth = new ApiKeyHealth();
+        AdaptiveTranscriptionClient client = CreateClient(TranscriptionModePreference.Auto, online, offline, isApiKeyConfigured: true, keyHealth);
+
+        string? result = await client.TranscribeAsync([]);
+
+        Assert.Equal("offline", result);
+        Assert.True(keyHealth.IsRejected);
+    }
+
+    [Fact]
+    public async Task Auto_WhileTheKeyIsRefused_GoesStraightToOffline()
+    {
+        var online = new FakeTranscriptionClient(result: "online");
+        var offline = new FakeTranscriptionClient(result: "offline");
+        var keyHealth = new ApiKeyHealth();
+        keyHealth.ReportRejected();
+        AdaptiveTranscriptionClient client = CreateClient(TranscriptionModePreference.Auto, online, offline, isApiKeyConfigured: true, keyHealth);
+
+        string? result = await client.TranscribeAsync([]);
+
+        Assert.Equal("offline", result);
+        Assert.Equal(0, online.CallCount);
+    }
+
+    [Fact]
+    public async Task Online_KeyRefused_ReportsItAndStillFails()
+    {
+        var online = new FakeTranscriptionClient(exception: new OnlineServiceException(HttpStatusCode.Forbidden, "permission denied"));
+        var offline = new FakeTranscriptionClient(result: "offline");
+        var keyHealth = new ApiKeyHealth();
+        AdaptiveTranscriptionClient client = CreateClient(TranscriptionModePreference.Online, online, offline, isApiKeyConfigured: true, keyHealth);
+
+        await Assert.ThrowsAsync<OnlineServiceException>(() => client.TranscribeAsync([]));
+
+        Assert.True(keyHealth.IsRejected);
+        Assert.Equal(0, offline.CallCount);
+    }
+
+    [Fact]
+    public async Task Online_AnAnswerFromGemini_ClearsARefusedKey()
+    {
+        var online = new FakeTranscriptionClient(result: "online");
+        var offline = new FakeTranscriptionClient(result: "offline");
+        var keyHealth = new ApiKeyHealth();
+        keyHealth.ReportRejected();
+        AdaptiveTranscriptionClient client = CreateClient(TranscriptionModePreference.Online, online, offline, isApiKeyConfigured: true, keyHealth);
+
+        await client.TranscribeAsync([]);
+
+        Assert.False(keyHealth.IsRejected);
+    }
+
+    [Fact]
+    public async Task Auto_AKeySavedAfterStart_IsUsedWithoutARestart()
+    {
+        // Setup saves the key while the engine is already running (spec §7).
+        var online = new FakeTranscriptionClient(result: "online");
+        var offline = new FakeTranscriptionClient(result: "offline");
+        bool keySet = false;
+        var client = new AdaptiveTranscriptionClient(TranscriptionModeStore.ForTesting(TranscriptionModePreference.Auto), online, offline, () => keySet);
+        Assert.Equal("offline", await client.TranscribeAsync([]));
+
+        keySet = true;
+
+        Assert.Equal("online", await client.TranscribeAsync([]));
+    }
+
     private static AdaptiveTranscriptionClient CreateClient(
         TranscriptionModePreference mode,
         ITranscriptionClient online,
         ITranscriptionClient offline,
-        bool isApiKeyConfigured) =>
-        new(TranscriptionModeStore.ForTesting(mode), online, offline, isApiKeyConfigured);
+        bool isApiKeyConfigured,
+        ApiKeyHealth? keyHealth = null) =>
+        new(TranscriptionModeStore.ForTesting(mode), online, offline, () => isApiKeyConfigured, keyHealth: keyHealth);
 
     private sealed class FakeTranscriptionClient(string? result = null, Exception? exception = null) : ITranscriptionClient
     {

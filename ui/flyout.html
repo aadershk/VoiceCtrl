@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- The tray flyout (DESIGN §12): transparent everywhere but the menu. It renders nothing until
+     the host's first tray.open, so it has no first paint to hold back. The host sets data-theme
+     and data-reduced-motion before first paint; these defaults only apply in a plain browser on
+     the mock bridge. The build adds the page CSP. -->
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VoiceCtrl</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/flyout/main.tsx"></script>
+  </body>
+</html>

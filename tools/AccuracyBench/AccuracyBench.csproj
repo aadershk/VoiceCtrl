@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Records a fixed set of spoken scripts once, then replays the audio through each
+       transcription pipeline and scores the words (ticket 34). Audio stays under the git-ignored
+       .scratch/v4-ship/accuracy/audio folder. Not shipped: it exists so the voice engine
+       decision and every later build can be judged on the same numbers. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>VoiceCtrl.Tools.AccuracyBench</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\VoiceCtrl.Core\VoiceCtrl.Core.csproj" />
+  </ItemGroup>
+
+</Project>

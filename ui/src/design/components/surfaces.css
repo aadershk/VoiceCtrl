@@ -1,0 +1,283 @@
+/*
+ * DESIGN §8 composite components: nav, rows, the Latest hero, the Failed Dictation notice,
+ * the inline editor, menus, the dialog, toasts, the status card, empty states and the frameless
+ * window controls (§5). Enter and exit motion is applied from motion.ts, not from keyframes here.
+ */
+
+/* Nav: one raised highlight slides between items on the spring (§10 rule 6). */
+.vc-nav { position: relative; display: flex; flex-direction: column; gap: 4px; }
+.vc-nav-highlight {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 38px;
+  border-radius: var(--r-control);
+  background: var(--panel);
+  box-shadow: var(--nav-shadow);
+  pointer-events: none;
+  transition:
+    transform var(--dur-shape) var(--ease-spring),
+    background-color var(--dur-fade) var(--ease-out);
+}
+.vc-nav-item {
+  position: relative;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--r-control);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--ink-2);
+  text-align: left;
+  transition:
+    background-color var(--dur-hover) var(--ease-out),
+    color var(--dur-hover) var(--ease-out);
+}
+.vc-nav-item:hover { background: var(--hover); color: var(--ink); }
+.vc-nav-item[aria-current="page"] { color: var(--ink); font-weight: 500; }
+.vc-nav-item[aria-current="page"]:hover { background: none; }
+
+/* List row */
+.vc-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 12px;
+  margin: 0 -12px;
+  border-radius: var(--r-row);
+  transition: background-color var(--dur-hover) var(--ease-out);
+}
+.vc-row:hover { background: var(--tint); }
+.vc-row-text { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.vc-row-primary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.vc-row-actions { display: flex; gap: 2px; opacity: 0; transition: opacity var(--dur-hover) var(--ease-out); }
+.vc-row:hover .vc-row-actions,
+.vc-row:focus-within .vc-row-actions { opacity: 1; }
+.vc-sep { height: 1px; background: var(--line); }
+
+/* Settings row; Quick Find landing flashes it --tint for 1.6 s (a colour fade, allowed). */
+.vc-setting {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 12px;
+  margin: 0 -12px;
+  border-radius: var(--r-row);
+}
+.vc-setting-flash { animation: vc-flash 1600ms var(--ease-out); }
+@keyframes vc-flash {
+  0%, 40% { background: var(--tint); }
+  100% { background: transparent; }
+}
+.vc-setting-label { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.vc-setting-label b { font-size: 15px; font-weight: 500; }
+.vc-setting-label span { font-size: 13px; color: var(--ink-3); }
+.vc-setting-control { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+/* Cards */
+.vc-card { background: var(--tint); border-radius: var(--r-card); }
+
+.vc-hero { padding: 26px 30px 24px; display: flex; flex-direction: column; gap: 18px; }
+.vc-hero-meta { font-size: 13px; color: var(--ink-3); }
+.vc-hero-meta b { font-weight: 600; color: var(--ink-2); }
+.vc-hero-text { margin: 0; letter-spacing: -0.005em; }
+.vc-hero-actions { display: flex; align-items: center; gap: 8px; }
+.vc-hero-hint { margin-left: 8px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-3); }
+
+.vc-notice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 14px 14px 18px;
+  border-radius: var(--r-card);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+}
+.vc-notice > .vc-icon { color: var(--warn-icon); }
+.vc-notice-text { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.vc-notice-title { font-size: 14px; font-weight: 600; color: var(--warn-ink); }
+.vc-notice-detail { font-size: 13px; color: var(--ink-2); }
+.vc-notice-busy { height: 36px; padding: 0 12px; display: inline-flex; align-items: center; gap: 10px; color: var(--ink-2); }
+
+.vc-editor {
+  margin: 4px -12px;
+  padding: 20px;
+  border-radius: var(--r-card);
+  background: var(--tint);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.vc-editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Menu. The opener and the menu share a .vc-menu-anchor; placement puts the menu 6 px away. */
+.vc-menu-anchor { position: relative; display: inline-flex; }
+.vc-menu-pop { position: absolute; z-index: 10; }
+.vc-menu-below-start { top: calc(100% + 6px); left: 0; }
+.vc-menu-below-end { top: calc(100% + 6px); right: 0; }
+.vc-menu-above-start { bottom: calc(100% + 6px); left: 0; }
+.vc-menu-above-end { bottom: calc(100% + 6px); right: 0; }
+.vc-menu {
+  min-width: 220px;
+  padding: 6px;
+  border-radius: var(--r-menu);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--pop-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vc-menu-item {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--r-menu-item);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  text-align: left;
+  white-space: nowrap;
+  transition: background-color var(--dur-hover) var(--ease-out);
+}
+.vc-menu-item .vc-icon { width: 16px; height: 16px; color: var(--ink-2); }
+.vc-menu-item:hover:not(:disabled),
+.vc-menu-item:focus-visible { background: var(--tint); }
+.vc-menu-item:focus-visible { outline-offset: -2px; }
+.vc-menu-item:disabled { opacity: .45; }
+.vc-menu-item-danger,
+.vc-menu-item-danger .vc-icon { color: var(--danger); }
+.vc-menu-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+.vc-menu-check { width: 16px; height: 16px; flex-shrink: 0; display: inline-flex; }
+.vc-menu-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Dialog: only Clear all Dictations uses one. */
+.vc-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: var(--scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vc-dialog {
+  width: 420px;
+  padding: 24px;
+  border-radius: var(--r-dialog);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--pop-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vc-dialog-body { margin: 0; font-size: 14px; line-height: 1.55; color: var(--ink-2); }
+.vc-dialog-actions { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Toast: bottom centre of the content card (its container must be position: relative). */
+.vc-toast-region {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 28px;
+  z-index: 15;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.vc-toast {
+  pointer-events: auto;
+  max-width: 560px;
+  min-height: 44px;
+  padding: 8px 8px 8px 16px;
+  border-radius: var(--r-row);
+  background: var(--ink);
+  color: var(--panel);
+  box-shadow: var(--pop-shadow);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.vc-toast-message { line-height: 1.4; }
+.vc-toast-error { background: var(--panel); color: var(--ink); }
+.vc-toast-error > .vc-icon { width: 16px; height: 16px; color: var(--danger); }
+.vc-toast .vc-icon-btn { color: inherit; }
+.vc-toast .vc-toast-action { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.vc-toast .vc-toast-action,
+.vc-toast .vc-toast-action:hover:not(:disabled),
+.vc-toast .vc-icon-btn:hover:not(:disabled) { color: inherit; }
+
+/* Status card: sidebar foot. */
+.vc-status {
+  padding: 12px 6px 12px 14px;
+  border-radius: var(--r-row);
+  background: var(--tint);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.vc-status-text { display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.vc-status-title { font-size: 13px; font-weight: 500; }
+.vc-status-hint { font-size: 12px; color: var(--ink-3); }
+.vc-status-warning { display: flex; align-items: center; gap: 10px; text-align: left; }
+.vc-status-warning .vc-icon { width: 16px; height: 16px; color: var(--warn-icon); }
+.vc-status-warning .vc-status-title { font-weight: 600; color: var(--warn-ink); }
+.vc-status-warning .vc-status-hint { color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; }
+.vc-status-neutral .vc-icon { color: var(--ink-2); }
+.vc-status-neutral .vc-status-title { color: var(--ink); }
+
+/* Empty and error states: an icon on a tint squircle, never an illustration (§7). */
+.vc-empty {
+  padding: 56px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+.vc-empty .vc-dialog-title { margin-top: 6px; }
+.vc-empty .vc-sub { max-width: 420px; line-height: 1.55; }
+.vc-empty-actions { margin-top: 6px; display: flex; gap: 8px; }
+.vc-art {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--r-panel);
+  background: var(--tint);
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vc-art-logo { width: 96px; height: 96px; border-radius: 28px; }
+
+/* Frameless window controls (§5): 46 × 40 each, floating top right over --bg. */
+/* no-drag: they sit inside the page's app-region: drag title strip and must stay clickable. */
+.vc-window-controls { position: absolute; top: 0; right: 0; z-index: 30; height: 40px; display: flex; app-region: no-drag; }
+.vc-window-button {
+  width: 46px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-2);
+  transition:
+    background-color var(--dur-hover) var(--ease-out),
+    color var(--dur-hover) var(--ease-out);
+}
+.vc-window-button:hover { background: var(--hover); color: var(--ink); }
+.vc-window-close:hover { background: var(--close-hover); color: var(--close-hover-ink); }
+.vc-editor-spacer { flex-grow: 1; }

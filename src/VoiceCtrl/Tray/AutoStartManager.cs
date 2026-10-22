@@ -3,23 +3,35 @@ using Microsoft.Win32;
 namespace VoiceCtrl.Tray;
 
 /// <summary>
-/// Registers/unregisters the app under HKCU Run so it launches at login. Uses
-/// Environment.ProcessPath rather than Assembly.GetExecutingAssembly().Location, since the latter
-/// returns empty under PublishSingleFile=true, which would silently break autostart only in
-/// the published build.
+/// Start with Windows: the HKCU Run value. Rewritten on every start to match the setting (spec §9),
+/// so it always points at the exe that is running now; that self-heals a moved install and the
+/// v3 → v4 path change. Uses <see cref="Environment.ProcessPath"/>, since the assembly location is
+/// empty in a single-file publish.
 /// </summary>
 public static class AutoStartManager
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "VoiceCtrl";
 
-    public static bool IsEnabled()
+    /// <summary>The flag the Run value passes, so a login start stays in the tray.</summary>
+    public const string AutostartArgument = "--autostart";
+
+    public static void Apply(bool startWithWindows)
     {
-        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
-        return key?.GetValue(ValueName) is string existing && existing.Length > 0;
+        if (startWithWindows)
+        {
+            Enable();
+        }
+        else
+        {
+            Disable();
+        }
     }
 
-    public static void Enable()
+    /// <summary>Uninstall always removes the value, whatever the setting (spec §9).</summary>
+    public static void Remove() => Disable();
+
+    private static void Enable()
     {
         string? exePath = Environment.ProcessPath;
         if (string.IsNullOrEmpty(exePath))
@@ -28,10 +40,14 @@ public static class AutoStartManager
         }
 
         using RegistryKey key = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
-        key.SetValue(ValueName, $"\"{exePath}\"");
+        string value = $"\"{exePath}\" {AutostartArgument}";
+        if (key.GetValue(ValueName) as string != value)
+        {
+            key.SetValue(ValueName, value);
+        }
     }
 
-    public static void Disable()
+    private static void Disable()
     {
         using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
         key?.DeleteValue(ValueName, throwOnMissingValue: false);

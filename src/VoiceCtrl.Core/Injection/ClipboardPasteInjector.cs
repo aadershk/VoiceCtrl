@@ -1,5 +1,7 @@
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using VoiceCtrl.Core.Interop;
 using VoiceCtrl.Core.Logging;
 
 namespace VoiceCtrl.Core.Injection;
@@ -25,6 +27,12 @@ public sealed class ClipboardPasteInjector : ITextInjector
                 return InjectionResult.ClipboardOnlyElevatedTarget;
             }
 
+            if (await FocusInspector.InspectAsync().ConfigureAwait(true) == FocusKind.NotTextInput)
+            {
+                await SetClipboardTextWithRetryAsync(text).ConfigureAwait(true);
+                return InjectionResult.ClipboardOnlyNoTextBox;
+            }
+
             IDataObject? saved = TryGetClipboardSnapshot();
             await SetClipboardTextWithRetryAsync(text).ConfigureAwait(true);
             SendInputHelper.SendCtrlV();
@@ -45,7 +53,11 @@ public sealed class ClipboardPasteInjector : ITextInjector
         }
     }
 
-    private static IDataObject? TryGetClipboardSnapshot()
+    // InjectAsync has already waited PostPasteSettleDelay after Ctrl+V, so the target has read
+    // the clipboard and the text is in place before Enter arrives.
+    public void PressEnter() => SendInputHelper.SendKey(NativeMethods.VK_RETURN);
+
+    internal static IDataObject? TryGetClipboardSnapshot()
     {
         try
         {
@@ -86,10 +98,26 @@ public sealed class ClipboardPasteInjector : ITextInjector
         }
     }
 
-    private static Task SetClipboardTextWithRetryAsync(string text) =>
-        RunWithRetryAsync(() => Clipboard.SetText(text, TextDataFormat.UnicodeText));
+    internal static Task SetClipboardTextWithRetryAsync(string text) =>
+        RunWithRetryAsync(() => Clipboard.SetDataObject(PrivateText(text), copy: true));
 
-    private static async Task RestoreClipboardWithRetryAsync(IDataObject? saved)
+    /// <summary>
+    /// The Dictation as clipboard text that Windows is asked to keep out of clipboard history
+    /// (Win+V), cloud clipboard sync and clipboard-monitoring tools. What someone says aloud into
+    /// an email is not meant to outlive the paste (VED-49 security review). The three formats are
+    /// the documented opt-outs, each a DWORD.
+    /// </summary>
+    internal static DataObject PrivateText(string text)
+    {
+        var data = new DataObject();
+        data.SetData(DataFormats.UnicodeText, text);
+        data.SetData("ExcludeClipboardContentFromMonitorProcessing", new MemoryStream(BitConverter.GetBytes(1)));
+        data.SetData("CanIncludeInClipboardHistory", new MemoryStream(BitConverter.GetBytes(0)));
+        data.SetData("CanUploadToCloudClipboard", new MemoryStream(BitConverter.GetBytes(0)));
+        return data;
+    }
+
+    internal static async Task RestoreClipboardWithRetryAsync(IDataObject? saved)
     {
         if (saved is null)
         {

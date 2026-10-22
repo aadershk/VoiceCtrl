@@ -1,0 +1,65 @@
+/* Gallery layout only (dev page). Components never depend on anything here. */
+
+.g-page {
+  min-height: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 24px;
+  background: #d9d4cc;
+}
+
+.g-theme {
+  width: min(780px, 100%);
+  padding: 32px 40px 40px;
+  border-radius: var(--r-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.g-theme-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.g-section { display: flex; flex-direction: column; gap: 14px; }
+.g-section > h2 { margin: 0; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.g-panel {
+  position: relative;
+  padding: 24px 28px;
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.g-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.g-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.g-stack { display: flex; flex-direction: column; gap: 8px; }
+.g-sidebar { width: 228px; padding: 16px 14px; border-radius: var(--r-card); background: var(--bg); display: flex; flex-direction: column; gap: 16px; }
+.g-brand { display: flex; align-items: center; gap: 10px; padding-left: 6px; }
+
+.g-swatches { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.g-swatch { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--ink-3); }
+.g-swatch i { display: block; height: 36px; border-radius: var(--r-sm); border: 1px solid var(--line); }
+
+.g-icons { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
+.g-icon { height: 58px; border-radius: var(--r-sm); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 10px; color: var(--ink-3); }
+.g-icon .vc-icon { color: var(--ink); }
+
+/* Popovers normally float over a page; here they sit in a box so both Themes show at once. */
+.g-stage { position: relative; min-height: 220px; border-radius: var(--r-card); background: var(--bg); overflow: hidden; }
+.g-stage .vc-scrim { position: absolute; }
+.g-stage-menu { padding: 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.g-flyout { width: 292px; }
+.g-flyout-head { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+.g-flyout-mode { height: 44px; padding: 0 6px 0 12px; display: flex; align-items: center; justify-content: space-between; font-size: 14px; }
+.g-window { min-height: 0; height: 64px; }

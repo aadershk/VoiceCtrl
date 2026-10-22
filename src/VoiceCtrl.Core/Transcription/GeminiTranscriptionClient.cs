@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using VoiceCtrl.Core.Audio;
 using VoiceCtrl.Core.Config;
+using VoiceCtrl.Core.Online;
 using VoiceCtrl.Core.Injection;
 using VoiceCtrl.Core.Logging;
 using VoiceCtrl.Core.Personalization;
@@ -20,31 +21,18 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
     // this path exists for completeness, not because it's expected to trigger often.
     private const int FilesApiThresholdBytes = 15 * 1024 * 1024;
 
-    private const string PromptTemplate = """
-        You are a dictation transcription engine. Listen to the attached audio clip and produce the
-        final cleaned-up text the speaker intended to write.
-
-        1. Transcribe accurately first, then silently clean up. Do not show the raw transcript or your work.
-        2. {0}
-        3. If the speaker corrects or retracts something mid-utterance (e.g. "send it to John...
-           actually, no, make that Sarah", "the meeting is at 3, wait, 4 PM"), output only the
-           final corrected version. Drop the retracted content entirely. Do not show both.
-        4. Preserve the speaker's actual meaning and wording. Do not summarize or add information.
-        5. Apply explicit formatting instructions ("new paragraph", "bullet point") instead of
-           transcribing them literally. If the speaker enumerates three or more items with clear
-           verbal markers ("first... second... third...", "one, two, three") without explicitly
-           asking for a list, format them as one anyway.
-        6. Transcribe in the same language the speaker used.
-        7. If the audio is silent or has no discernible speech, respond with exactly: [NO_SPEECH_DETECTED]
-        8. Output ONLY the final text. No preamble, no quotes, no markdown fences, no "Here is...".
-        """;
-
     private readonly HttpClient _httpClient;
     private readonly GeminiFilesApiUploader _filesApiUploader;
-    private readonly string _apiKey;
+    private readonly Func<string> _apiKey;
     private readonly string _modelId;
+    private IReadOnlyList<string> _models;
+
+    /// <summary>The models to try, primary first; the benches set one to measure it alone.</summary>
+    internal IReadOnlyList<string> Models { get => _models; init => _models = value; }
     private readonly string _thinkingLevel;
-    private readonly string _cleanupLevel;
+    private readonly Func<string> _cleanupLevel;
+    private readonly Func<bool> _pressEnter;
+    private readonly Func<StyleSettings> _styles;
     private readonly string _styleNotes;
     private readonly bool _enableToneAwareness;
     private readonly IReadOnlyList<string> _promptStyleApps;
@@ -52,17 +40,38 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
     private readonly bool _compressUpload;
     private readonly PersonalizationStore _personalization;
     private readonly Func<string?> _getForegroundProcessName;
+    private readonly Func<string?> _getForegroundWindowTitle;
+    private readonly SmartCleanupLedger? _ledger;
 
+    /// <param name="apiKey">Reads the key at each request, so a key saved while the app runs
+    /// (Setup, Settings) is used at once. Defaults to the key in <paramref name="config"/>.</param>
+    /// <param name="cleanupLevel">Reads the default Cleanup Level at each request, so a change in
+    /// Settings applies to the next Dictation. Defaults to the level in <paramref name="config"/>.</param>
+    /// <param name="pressEnter">The Press Enter setting, read at each request. Defaults to off.</param>
+    /// <param name="styles">The Style screen's settings, read at each request. Defaults to a fresh install's.</param>
+    /// <param name="ledger">Told the transcript Gemini edited, for the Dictations screen's Original.</param>
+    /// <param name="foregroundWindowTitleProvider">The foreground window's title, which names a browser's
+    /// site. Defaults to the real one, or to none when <paramref name="foregroundProcessNameProvider"/> is given.</param>
     public GeminiTranscriptionClient(
         AppConfig config,
         Func<string?>? foregroundProcessNameProvider = null,
-        PersonalizationStore? personalization = null)
+        PersonalizationStore? personalization = null,
+        Func<string>? apiKey = null,
+        Func<string>? cleanupLevel = null,
+        Func<bool>? pressEnter = null,
+        SmartCleanupLedger? ledger = null,
+        Func<string?>? foregroundWindowTitleProvider = null,
+        Func<StyleSettings>? styles = null)
     {
+        _ledger = ledger;
         _personalization = personalization ?? PersonalizationStore.Empty;
-        _apiKey = config.GeminiApiKey;
+        _apiKey = apiKey ?? (() => config.GeminiApiKey);
         _modelId = config.GeminiModelId;
+        _models = ModelsFor(_modelId);
         _thinkingLevel = config.ThinkingLevel;
-        _cleanupLevel = config.CleanupLevel;
+        _cleanupLevel = cleanupLevel ?? (() => config.CleanupLevel);
+        _pressEnter = pressEnter ?? (() => false);
+        _styles = styles ?? (() => new StyleSettings());
         _styleNotes = config.StyleNotes;
         _enableToneAwareness = config.EnableToneAwareness;
         _promptStyleApps = config.PromptStyleApps;
@@ -71,106 +80,15 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
         // Overridable so tests/smoke-harnesses can force a specific "foreground app" instead of
         // depending on whatever window actually has focus during the run.
         _getForegroundProcessName = foregroundProcessNameProvider ?? ForegroundAppDetector.GetForegroundProcessName;
+        _getForegroundWindowTitle = foregroundWindowTitleProvider ??
+                                    (foregroundProcessNameProvider is null ? ForegroundAppDetector.GetForegroundWindowTitle : () => null);
+        // The request deadline is set per request (RequestTimeoutFor), because a 20-minute recording
+        // needs minutes to answer where a sentence needs seconds.
         _httpClient = new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(30),
+            Timeout = Timeout.InfiniteTimeSpan,
         };
         _filesApiUploader = new GeminiFilesApiUploader(_apiKey);
-    }
-
-    /// <summary>Everything about a single request that depends on which application the speaker is
-    /// dictating into. Resolved once per transcription, since a profile can override any of it.</summary>
-    private readonly record struct PromptContext(
-        string CleanupLevel,
-        string? ToneHint,
-        string? FormattingHint,
-        string? ExtraInstructions);
-
-    /// <summary>
-    /// Layers the user's profiles.json entry over the .env lists and then the built-in tables.
-    /// A field the profile does not mention falls through rather than blanking, so overriding one
-    /// aspect of an app never silently discards the rest.
-    /// </summary>
-    private PromptContext ResolvePromptContext(string? processName)
-    {
-        AppProfile? profile = _personalization.Profiles.Resolve(processName);
-
-        string? explicitTone = NullIfBlank(profile?.Tone);
-        string? explicitFormatting = NullIfBlank(profile?.Formatting);
-
-        // A tone stated in a profile is the user speaking directly, so it applies even when
-        // ENABLE_TONE_AWARENESS is off. That flag governs VoiceCtrl guessing a tone from the
-        // foreground app, which is a different thing from the user writing one down.
-        string? toneHint = explicitTone switch
-        {
-            null => _enableToneAwareness ? ToneHintMapper.Resolve(processName) : null,
-            _ when IsNone(explicitTone) => null,
-            _ => explicitTone,
-        };
-
-        string? formattingHint = explicitFormatting switch
-        {
-            null => FormattingHintMapper.Resolve(processName, _promptStyleApps, _chatStyleApps),
-            _ when IsNone(explicitFormatting) => null,
-            // An unrecognised value is treated as a typo rather than as an instruction to suppress
-            // formatting, so a misspelled profile degrades to the built-in behaviour.
-            _ => FormattingHintMapper.ResolveExplicit(explicitFormatting)
-                 ?? FormattingHintMapper.Resolve(processName, _promptStyleApps, _chatStyleApps),
-        };
-
-        return new PromptContext(
-            NullIfBlank(profile?.Cleanup) ?? _cleanupLevel,
-            toneHint,
-            formattingHint,
-            NullIfBlank(profile?.Instructions));
-    }
-
-    private static string? NullIfBlank(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static bool IsNone(string value) =>
-        string.Equals(value, AppProfile.None, StringComparison.OrdinalIgnoreCase);
-
-    private string BuildPrompt(PromptContext context, IReadOnlyList<string> dictionaryTerms)
-    {
-        string prompt = string.Format(PromptTemplate, CleanupLevelMapper.Resolve(context.CleanupLevel));
-
-        if (!string.IsNullOrWhiteSpace(_styleNotes))
-        {
-            prompt += "\n\nAdditional user preferences. Rule 4 (preserve meaning/wording) still " +
-                      $"takes priority if these ever conflict with it:\n{_styleNotes.Trim()}";
-        }
-
-        if (dictionaryTerms.Count > 0)
-        {
-            // Framed as spelling rather than as vocabulary on purpose. The failure mode worth
-            // guarding against is the model reaching for a listed term because it appears in the
-            // prompt, when the speaker said something else entirely.
-            prompt += "\n\nSpelling reference. These are names and terms this speaker uses. When " +
-                      "something in the audio clearly matches one of these, spell it exactly as " +
-                      "written here. Never insert one that was not actually said:\n- " +
-                      string.Join("\n- ", dictionaryTerms);
-        }
-
-        if (!string.IsNullOrWhiteSpace(context.ToneHint))
-        {
-            prompt += "\n\nContext hint (best-effort, from the active application, ignore if it " +
-                      $"doesn't fit what was actually said): {context.ToneHint}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(context.FormattingHint))
-        {
-            prompt += "\n\nFormatting hint (best-effort, from the active application, ignore if " +
-                      $"it doesn't fit what was actually said): {context.FormattingHint}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(context.ExtraInstructions))
-        {
-            prompt += "\n\nInstructions for this specific application, from the user's profile for " +
-                      $"it. Rule 4 still takes priority if these conflict with it: {context.ExtraInstructions}";
-        }
-
-        return prompt;
     }
 
     public async Task PrewarmConnectionAsync(CancellationToken cancellationToken = default)
@@ -178,7 +96,7 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/{_modelId}");
-            request.Headers.Add("x-goog-api-key", _apiKey);
+            request.Headers.Add("x-goog-api-key", _apiKey());
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(5));
             using HttpResponseMessage response = await _httpClient.SendAsync(request, cts.Token).ConfigureAwait(true);
@@ -213,6 +131,16 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
             : (wavBytes, "audio/wav");
     }
 
+    /// <summary>
+    /// 30 s for a short clip, as before, plus half a second per second of audio, so the longest
+    /// recording (20 minutes) gets about ten minutes to be answered instead of failing at 30 s.
+    /// </summary>
+    internal static TimeSpan RequestTimeoutFor(int wavByteCount)
+    {
+        const double bytesPerSecond = 32_000; // 16 kHz, 16-bit, mono
+        return TimeSpan.FromSeconds(30 + wavByteCount / bytesPerSecond * 0.5);
+    }
+
     public async Task<string?> TranscribeAsync(byte[] wavBytes, CancellationToken cancellationToken = default)
     {
         (byte[] audioBytes, string mimeType) = PrepareUploadPayload(wavBytes);
@@ -240,13 +168,17 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
         // (structured vs. prose) is a separate feature from tone awareness and must not go dark
         // just because ENABLE_TONE_AWARENESS=false, since only the tone hint is gated by that flag.
         string? processName = _getForegroundProcessName();
-        PromptContext promptContext = ResolvePromptContext(processName);
-        IReadOnlyList<string> dictionaryTerms = _personalization.DictionaryTerms;
+        PromptContext promptContext = GeminiPrompt.ContextFor(
+            _personalization.Profiles.Resolve(processName), processName,
+            new PromptDefaults(_cleanupLevel(), _enableToneAwareness, _promptStyleApps, _chatStyleApps, _pressEnter(), _styles()),
+            _getForegroundWindowTitle());
+        IReadOnlyList<DictionaryEntry> dictionary = _personalization.Dictionary;
 
+        // The kind, never the window title: a title can hold an email's subject.
         SimpleFileLogger.LogInfo(
-            $"Style detection: process={processName ?? "(none)"} tone={(promptContext.ToneHint is null ? "none" : "set")} " +
+            $"Style detection: process={processName ?? "(none)"} kind={promptContext.Kind} tone={(promptContext.ToneHint is null ? "none" : "set")} " +
             $"formatting={(promptContext.FormattingHint is null ? "none" : "set")} " +
-            $"cleanup={promptContext.CleanupLevel} dictionary={dictionaryTerms.Count}");
+            $"cleanup={promptContext.CleanupLevel} email={promptContext.EmailLayout} dictionary={dictionary.Count}");
 
         var request = new GenerateContentRequest
         {
@@ -255,23 +187,48 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
                 new RequestContent
                 {
                     Role = "user",
-                    Parts = [new RequestPart { Text = BuildPrompt(promptContext, dictionaryTerms) }, audioPart],
+                    Parts = [new RequestPart { Text = GeminiPrompt.Build(promptContext, _styleNotes, dictionary) }, audioPart],
                 },
             ],
             GenerationConfig = new GenerationConfig { ThinkingConfig = new ThinkingConfig { ThinkingLevel = _thinkingLevel } },
         };
 
-        string url = $"{BaseUrl}/{_modelId}:generateContent";
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
-        httpRequest.Headers.Add("x-goog-api-key", _apiKey);
+        // The primary model, then the backup if it is busy or gives no first answer in time (ticket 60).
+        string text = await ModelAttempts.RunAsync(
+            _models, ModelAttempts.AudioDeadline(wavBytes.Length),
+            (model, token) => AskAsync(model, request, RequestTimeoutFor(wavBytes.Length), token),
+            "Online Dictation (Gemini)", cancellationToken).ConfigureAwait(true);
+
+        string trimmed = text.Trim();
+        if (trimmed == NoSpeechSentinel)
+        {
+            return null;
+        }
+
+        (string finalText, string? original) = GeminiOutput.Split(trimmed);
+        if (original is not null)
+        {
+            _ledger?.Record(original);
+        }
+
+        return PasteLayout.Finish(finalText, promptContext, word => BuiltInVocabulary.Shared.IsOrdinaryWord(word));
+    }
+
+    /// <summary>One generateContent call with <paramref name="model"/>; the text it answered.</summary>
+    private async Task<string> AskAsync(string model, GenerateContentRequest request, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/{model}:generateContent");
+        httpRequest.Headers.Add("x-goog-api-key", _apiKey());
         httpRequest.Content = JsonContent.Create(request);
 
-        using HttpResponseMessage response = await _httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(true);
-        string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(true);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(timeout);
+        using HttpResponseMessage response = await _httpClient.SendAsync(httpRequest, deadline.Token).ConfigureAwait(true);
+        string body = await response.Content.ReadAsStringAsync(deadline.Token).ConfigureAwait(true);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new GeminiApiException(response.StatusCode, ExtractErrorMessage(body));
+            throw new OnlineServiceException(response.StatusCode, ExtractErrorMessage(body), OnlineProvider.Gemini);
         }
 
         GenerateContentResponse? parsed = JsonSerializer.Deserialize<GenerateContentResponse>(body);
@@ -282,12 +239,15 @@ public sealed class GeminiTranscriptionClient : ITranscriptionClient
         if (string.IsNullOrWhiteSpace(text))
         {
             string reason = parsed?.PromptFeedback?.BlockReason ?? "empty response";
-            throw new GeminiApiException(response.StatusCode, $"Gemini returned no text ({reason}).");
+            throw new OnlineServiceException(response.StatusCode, $"Gemini returned no text ({reason}).", OnlineProvider.Gemini);
         }
 
-        string trimmed = text.Trim();
-        return trimmed == NoSpeechSentinel ? null : trimmed;
+        return text;
     }
+
+    /// <summary>The configured model, then the preset table's backup.</summary>
+    internal static IReadOnlyList<string> ModelsFor(string primary) =>
+        primary == OnlinePresets.GeminiBackup ? [primary, OnlinePresets.GeminiModel] : [primary, OnlinePresets.GeminiBackup];
 
     private static string ExtractErrorMessage(string body)
     {

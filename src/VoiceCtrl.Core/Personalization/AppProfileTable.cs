@@ -10,7 +10,7 @@ namespace VoiceCtrl.Core.Personalization;
 /// This is an override layer rather than a replacement for the built-in tables. A user who edits
 /// one entry should not silently freeze the other twelve at whatever they happened to be the day
 /// the file was written, and improvements to the built-ins should still reach them. So an absent
-/// application, or an absent field on a present application, falls through to the .env lists and
+/// application, or an absent field on a present application, falls through to the advanced-settings lists and
 /// then to the built-in mapping, in that order.
 /// </summary>
 public sealed class AppProfileTable
@@ -190,18 +190,22 @@ public sealed class AppProfileTable
             "Per-app dictation overrides, keyed by process name (with or without .exe).",
             "Every field is optional. Omit one to keep VoiceCtrl's built-in behaviour for it.",
             "tone:         free text, or \"none\" to suppress the built-in tone hint",
-            "formatting:   \"structured\" (Markdown lists), \"prose\", or \"none\"",
-            "cleanup:      \"light\", \"standard\" or \"aggressive\"",
+            "formatting:   \"structured\" (Markdown lists), \"prose\" (chat lines), \"paragraphs\", or \"none\"",
+            "app:          the app's name as the Hub shows it",
+            "cleanup:      \"verbatim\" (word for word), \"light\", \"standard\" or \"aggressive\"",
+            "emailLayout:  true to lay the text out as an email, false never to (email apps are on by default)",
             "instructions: anything else to tell the model when dictating into this app",
             "The two entries below match the built-in defaults. Edit or delete them freely."
           ],
 
           "slack": {
+            "app": "Slack",
             "tone": "casual, conversational tone; contractions are fine",
             "formatting": "prose"
           },
 
           "code": {
+            "app": "Visual Studio Code",
             "tone": "likely a code comment or commit message; preserve technical terms and casing exactly as spoken",
             "formatting": "structured"
           }

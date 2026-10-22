@@ -165,4 +165,21 @@ public class SnippetTableTests
     {
         Assert.Equal("# header\n", SnippetTable.Format("# header\n", []));
     }
+
+    [Fact]
+    public void Format_EscapesBackslashesSoATypedBackslashNSurvives()
+    {
+        string formatted = SnippetTable.Format(string.Empty, [new("path", "C:\\new folder\nline two")]);
+
+        Assert.Equal("path = C:\\\\new folder\\nline two\n", formatted);
+        Assert.Equal("C:\\new folder\nline two", SnippetTable.Parse(formatted.Split('\n')).Snippets[0].Value);
+    }
+
+    [Fact]
+    public void AHandWrittenBackslash_IsKeptAsTyped()
+    {
+        SnippetTable table = SnippetTable.Parse([@"docs = C:\Users\Public"]);
+
+        Assert.Equal(@"C:\Users\Public", table.Expand("docs"));
+    }
 }

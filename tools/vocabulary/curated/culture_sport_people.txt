@@ -1,0 +1,886 @@
+Rembrandt
+Vermeer
+Van Gogh
+Mondrian
+Escher
+Hals
+Steen
+Bosch
+Bruegel
+Rubens
+Van Dyck
+Magritte
+Monet
+Manet
+Renoir
+Degas
+Cezanne
+Gauguin
+Seurat
+Matisse
+Picasso
+Dali
+Miro
+Goya
+Velazquez
+El Greco
+Leonardo da Vinci
+Michelangelo
+Raphael
+Donatello
+Botticelli
+Caravaggio
+Titian
+Giotto
+Durer
+Holbein
+Klimt
+Schiele
+Kandinsky
+Klee
+Munch
+Warhol
+Pollock
+Rothko
+Hopper
+O'Keeffe
+Basquiat
+Banksy
+Kusama
+Hockney
+Turner
+Constable
+Hokusai
+Mozart
+Beethoven
+Bach
+Handel
+Haydn
+Schubert
+Schumann
+Brahms
+Mahler
+Bruckner
+Wagner
+Strauss
+Liszt
+Chopin
+Tchaikovsky
+Rachmaninoff
+Stravinsky
+Shostakovich
+Prokofiev
+Debussy
+Ravel
+Satie
+Vivaldi
+Verdi
+Puccini
+Rossini
+Paganini
+Dvorak
+Smetana
+Grieg
+Sibelius
+Elgar
+Holst
+Britten
+Copland
+Gershwin
+Bernstein
+Glass
+Reich
+Part
+Einaudi
+Zimmer
+Williams
+Morricone
+Elvis Presley
+Beatles
+John Lennon
+Paul McCartney
+George Harrison
+Ringo Starr
+Rolling Stones
+Mick Jagger
+Led Zeppelin
+Pink Floyd
+Queen
+Freddie Mercury
+David Bowie
+Bob Dylan
+Bob Marley
+Jimi Hendrix
+Prince
+Michael Jackson
+Madonna
+Whitney Houston
+Aretha Franklin
+Stevie Wonder
+Ray Charles
+Frank Sinatra
+Nina Simone
+Billie Holiday
+Ella Fitzgerald
+Louis Armstrong
+Miles Davis
+John Coltrane
+Duke Ellington
+Taylor Swift
+Beyonce
+Rihanna
+Adele
+Ed Sheeran
+Coldplay
+Radiohead
+Oasis
+Blur
+U2
+Nirvana
+Metallica
+AC/DC
+Guns N' Roses
+Eminem
+Jay-Z
+Kanye West
+Drake
+Kendrick Lamar
+Snoop Dogg
+Tupac
+Notorious B.I.G.
+Lady Gaga
+Katy Perry
+Ariana Grande
+Billie Eilish
+Dua Lipa
+Harry Styles
+Justin Bieber
+Bruno Mars
+The Weeknd
+Post Malone
+Bad Bunny
+Shakira
+Rosalia
+Daft Punk
+Calvin Harris
+Avicii
+Tiesto
+Armin van Buuren
+Martin Garrix
+David Guetta
+Hans Zimmer
+Andre Rieu
+Ennio
+ABBA
+Roxette
+Aqua
+Bjork
+Sigur Ros
+Kraftwerk
+Rammstein
+Scorpions
+BTS
+Blackpink
+Psy
+Arijit Singh
+A. R. Rahman
+Lata Mangeshkar
+Ravi Shankar
+Shakespeare
+Dickens
+Austen
+Bronte
+Woolf
+Orwell
+Tolkien
+Rowling
+Lewis Carroll
+Hardy
+Wilde
+Joyce
+Beckett
+Yeats
+Heaney
+Dahl
+Pratchett
+Christie
+Conan Doyle
+Fleming
+Le Carre
+Hemingway
+Fitzgerald
+Steinbeck
+Faulkner
+Twain
+Melville
+Hawthorne
+Poe
+Whitman
+Dickinson
+Frost
+Salinger
+Kerouac
+Vonnegut
+Morrison
+Angelou
+Baldwin
+Atwood
+Munro
+Rushdie
+Naipaul
+Seth
+Roy
+Ghosh
+Lahiri
+Adiga
+Tagore
+Premchand
+Narayan
+Kafka
+Mann
+Hesse
+Brecht
+Goethe
+Schiller
+Grass
+Remarque
+Sebald
+Tolstoy
+Dostoevsky
+Chekhov
+Pushkin
+Gogol
+Turgenev
+Nabokov
+Pasternak
+Solzhenitsyn
+Bulgakov
+Hugo
+Balzac
+Flaubert
+Zola
+Proust
+Camus
+Sartre
+de Beauvoir
+Moliere
+Voltaire
+Rousseau
+Descartes
+Pascal
+Houellebecq
+Dante
+Petrarch
+Boccaccio
+Calvino
+Eco
+Ferrante
+Cervantes
+Lorca
+Borges
+Garcia Marquez
+Neruda
+Allende
+Vargas Llosa
+Paz
+Coelho
+Saramago
+Pessoa
+Murakami
+Mishima
+Kawabata
+Oe
+Yoshimoto
+Ishiguro
+Han Kang
+Mo Yan
+Lu Xun
+Liu Cixin
+Achebe
+Soyinka
+Adichie
+Ngugi
+Coetzee
+Gordimer
+Mahfouz
+Pamuk
+Shafak
+Rumi
+Hafez
+Omar Khayyam
+Anne Frank
+Multatuli
+Mulisch
+Nooteboom
+Hella Haasse
+Harry Mulisch
+Tommy Wieringa
+Parasite
+Bong Joon-ho
+Oldboy
+Spirited Away
+Miyazaki
+Studio Ghibli
+Akira Kurosawa
+Seven Samurai
+Ozu
+Wong Kar-wai
+Ang Lee
+Zhang Yimou
+Satyajit Ray
+Pather Panchali
+Lagaan
+Dangal
+Sholay
+Bollywood
+Tollywood
+Kollywood
+Nollywood
+Citizen Kane
+Casablanca
+The Godfather
+Pulp Fiction
+Forrest Gump
+Titanic
+Avatar
+Inception
+Interstellar
+Oppenheimer
+Barbie
+Star Wars
+Star Trek
+Harry Potter
+Lord of the Rings
+Hobbit
+Game of Thrones
+Breaking Bad
+Better Call Saul
+The Wire
+The Sopranos
+Mad Men
+Succession
+The Crown
+Stranger Things
+Squid Game
+Money Heist
+Dark
+Narcos
+Black Mirror
+Sherlock
+Doctor Who
+Downton Abbey
+Peaky Blinders
+Friends
+Seinfeld
+The Office
+Parks and Recreation
+Simpsons
+South Park
+Family Guy
+Rick and Morty
+Spielberg
+Scorsese
+Tarantino
+Nolan
+Kubrick
+Hitchcock
+Coppola
+Lucas
+Cameron
+Ridley Scott
+Villeneuve
+Fellini
+Bergman
+Godard
+Truffaut
+Almodovar
+Herzog
+Fassbinder
+Lars von Trier
+Gael Garcia Bernal
+Meryl Streep
+Tom Hanks
+Leonardo DiCaprio
+Brad Pitt
+Denzel Washington
+Morgan Freeman
+Robert De Niro
+Al Pacino
+Jack Nicholson
+Marlon Brando
+Audrey Hepburn
+Marilyn Monroe
+Cate Blanchett
+Nicole Kidman
+Kate Winslet
+Emma Watson
+Emma Stone
+Zendaya
+Timothee Chalamet
+Shah Rukh Khan
+Amitabh Bachchan
+Aamir Khan
+Salman Khan
+Deepika Padukone
+Priyanka Chopra
+Aishwarya Rai
+Jackie Chan
+Bruce Lee
+Jet Li
+Tony Leung
+Zhang Ziyi
+Song Kang-ho
+Messi
+Ronaldo
+Pele
+Maradona
+Cruyff
+Beckenbauer
+Zidane
+Platini
+Cantona
+Henry
+Mbappe
+Griezmann
+Benzema
+Neymar
+Ronaldinho
+Kaka
+Romario
+Zico
+Socrates
+Salah
+Mane
+Drogba
+Eto'o
+Weah
+Haaland
+Odegaard
+Ibrahimovic
+Zlatan
+Lewandowski
+Neuer
+Muller
+Kroos
+Kimmich
+Musiala
+Beckham
+Rooney
+Gerrard
+Lampard
+Scholes
+Giggs
+Kane
+Saka
+Rashford
+Bellingham
+Foden
+Van Basten
+Gullit
+Rijkaard
+Bergkamp
+Overmars
+Seedorf
+Davids
+Kluivert
+Van Persie
+Robben
+Sneijder
+Van Dijk
+De Jong
+De Ligt
+Depay
+Gakpo
+Cruyff Arena
+Ajax
+Feyenoord
+PSV
+AZ Alkmaar
+Twente
+Vitesse
+Utrecht FC
+Heerenveen
+Real Madrid
+Barcelona
+Atletico Madrid
+Sevilla
+Valencia
+Villarreal
+Real Sociedad
+Athletic Bilbao
+Manchester United
+Manchester City
+Liverpool
+Chelsea
+Arsenal
+Tottenham
+Newcastle
+Aston Villa
+West Ham
+Everton
+Leeds United
+Leicester City
+Bayern Munich
+Borussia Dortmund
+Bayer Leverkusen
+RB Leipzig
+Schalke
+Juventus
+AC Milan
+Inter Milan
+Napoli
+Roma
+Lazio
+Atalanta
+Paris Saint-Germain
+Marseille
+Lyon
+Monaco
+Benfica
+Porto
+Sporting
+Celtic
+Rangers
+Galatasaray
+Fenerbahce
+Besiktas
+Anfield
+Old Trafford
+Etihad
+Emirates Stadium
+Stamford Bridge
+Camp Nou
+Bernabeu
+Wembley
+San Siro
+Allianz Arena
+Signal Iduna Park
+Wimbledon
+Roland Garros
+US Open
+Australian Open
+Federer
+Nadal
+Djokovic
+Murray
+Serena Williams
+Venus Williams
+Sampras
+Agassi
+Borg
+McEnroe
+Alcaraz
+Sinner
+Medvedev
+Zverev
+Swiatek
+Sabalenka
+Gauff
+Osaka
+Verstappen
+Hamilton
+Schumacher
+Senna
+Prost
+Vettel
+Alonso
+Raikkonen
+Leclerc
+Norris
+Russell
+Piastri
+Sainz
+Perez
+Formula One
+Zandvoort
+Monza
+Silverstone
+Monaco Grand Prix
+Spa-Francorchamps
+Suzuka
+Le Mans
+Tour de France
+Giro d'Italia
+Vuelta
+Eddy Merckx
+Lance Armstrong
+Pogacar
+Vingegaard
+Van der Poel
+Van Aert
+Evenepoel
+Bolt
+Lewis
+Owens
+Phelps
+Ledecky
+Biles
+Nadia Comaneci
+Kipchoge
+Farah
+Hassan
+Gebrselassie
+Bekele
+Muhammad Ali
+Tyson
+Mayweather
+Pacquiao
+Fury
+Joshua
+Jordan
+LeBron James
+Kobe Bryant
+Curry
+Durant
+Magic Johnson
+Larry Bird
+Shaquille O'Neal
+Lakers
+Celtics
+Warriors
+Bulls
+Knicks
+Tom Brady
+Patrick Mahomes
+Super Bowl
+NFL
+NBA
+MLB
+NHL
+Yankees
+Red Sox
+Dodgers
+Babe Ruth
+Wayne Gretzky
+Sachin Tendulkar
+Virat Kohli
+MS Dhoni
+Rohit Sharma
+Rahul Dravid
+Sourav Ganguly
+Kapil Dev
+Ricky Ponting
+Shane Warne
+Don Bradman
+Jasprit Bumrah
+IPL
+BCCI
+Ashes
+Lord's
+Eden Gardens
+Wankhede
+Olympics
+Paralympics
+Commonwealth Games
+World Cup
+Champions League
+Europa League
+Premier League
+La Liga
+Bundesliga
+Serie A
+Ligue 1
+Eredivisie
+Pierre de Coubertin
+Obama
+Biden
+Trump
+Clinton
+Bush
+Reagan
+Lincoln
+Washington
+Kennedy
+Roosevelt
+Churchill
+Thatcher
+Blair
+Johnson
+Sunak
+Starmer
+Macron
+Merkel
+Scholz
+Mitterrand
+De Gaulle
+Putin
+Gorbachev
+Lenin
+Stalin
+Zelensky
+Xi Jinping
+Mao
+Deng Xiaoping
+Modi
+Gandhi
+Nehru
+Ambedkar
+Bose
+Tagore
+Mandela
+Mugabe
+Nkrumah
+Kagame
+Erdogan
+Ataturk
+Netanyahu
+Sadat
+Nasser
+King Willem-Alexander
+Queen Maxima
+Beatrix
+Rutte
+Wilders
+Schoof
+Timmermans
+Von der Leyen
+Lagarde
+Draghi
+Guterres
+Kofi Annan
+Ban Ki-moon
+Pope Francis
+Dalai Lama
+Mother Teresa
+Martin Luther King
+Malcolm X
+Rosa Parks
+Greta Thunberg
+Malala
+Einstein
+Newton
+Galileo
+Kepler
+Copernicus
+Darwin
+Mendel
+Pasteur
+Curie
+Fleming
+Lister
+Jenner
+Salk
+Faraday
+Maxwell
+Tesla
+Edison
+Bell
+Marconi
+Hertz
+Planck
+Bohr
+Heisenberg
+Schrodinger
+Dirac
+Feynman
+Hawking
+Penrose
+Higgs
+Fermi
+Oppenheimer
+Sagan
+Tyson
+Attenborough
+Goodall
+Carson
+Humboldt
+Linnaeus
+Mendeleev
+Lavoisier
+Dalton
+Rutherford
+Bragg
+Pauling
+Watson
+Crick
+Franklin
+Wilkins
+Doudna
+Charpentier
+Ramanujan
+Chandrasekhar
+Raman
+Bhabha
+Sarabhai
+Kalam
+Abdus Salam
+Mahalanobis
+Plato
+Aristotle
+Socrates
+Pythagoras
+Archimedes
+Euclid
+Hippocrates
+Herodotus
+Thucydides
+Cicero
+Seneca
+Marcus Aurelius
+Augustine
+Aquinas
+Machiavelli
+Erasmus
+Spinoza
+Grotius
+Locke
+Hobbes
+Hume
+Kant
+Hegel
+Nietzsche
+Kierkegaard
+Schopenhauer
+Heidegger
+Wittgenstein
+Popper
+Arendt
+Foucault
+Derrida
+Said
+Confucius
+Laozi
+Sun Tzu
+Buddha
+Ashoka
+Akbar
+Shivaji
+Tipu Sultan
+Genghis Khan
+Kublai
+Napoleon
+Caesar
+Augustus
+Nero
+Alexander the Great
+Cleopatra
+Ramses
+Tutankhamun
+Hammurabi
+Charlemagne
+William the Conqueror
+Henry the Eighth
+Elizabeth the First
+Victoria
+Louis the Fourteenth
+Catherine the Great
+Peter the Great
+Ivan the Terrible
+Suleiman
+Saladin
+Marco Polo
+Columbus
+Magellan
+Vasco da Gama
+Cook
+Livingstone
+Shackleton
+Amundsen
+Armstrong
+Aldrin
+Gagarin
+Tereshkova
+Sally Ride
+Chris Hadfield
+Wubbo Ockels
+Andre Kuipers

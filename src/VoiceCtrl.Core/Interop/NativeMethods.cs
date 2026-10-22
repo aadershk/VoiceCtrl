@@ -66,12 +66,21 @@ public static class NativeMethods
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern IntPtr GetModuleHandle(string? lpModuleName);
 
+    // --- Real-time key state (Trigger Key stale-flag cross-check) ---
+    // Physical key state independent of any thread's message queue — used to cross-check a
+    // tracker's internal "is this key down" flag against what Windows actually reports right now,
+    // catching a flag a silently-dropped key-up left stuck "down". Only the high-order bit
+    // (0x8000) matters: whether the key is down at this instant.
+    [DllImport("user32.dll")]
+    public static extern short GetAsyncKeyState(int vKey);
+
     // --- Window styles (non-activating overlay) ---
     public const int GWL_EXSTYLE = -20;
     public const int WS_EX_NOACTIVATE = 0x08000000;
     public const int WS_EX_TOOLWINDOW = 0x00000080;
     public const int WM_MOUSEACTIVATE = 0x0021;
     public const int MA_NOACTIVATE = 3;
+    public const int WM_DPICHANGED = 0x02E0;
 
     // Deliberately the 32-bit GetWindowLong/SetWindowLong, not the *Ptr variants:
     // GWL_EXSTYLE is a 32-bit style bitmask even on x64, and user32 still exports
@@ -87,6 +96,9 @@ public static class NativeMethods
 
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
 
     [DllImport("user32.dll")]
     public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
@@ -119,6 +131,18 @@ public static class NativeMethods
 
     [DllImport("shcore.dll")]
     public static extern int GetDpiForMonitor(IntPtr hmonitor, MonitorDpiType dpiType, out uint dpiX, out uint dpiY);
+
+    // --- Window placement in physical pixels (overlay positioning) ---
+    // The Overlay is moved with SetWindowPos in physical pixels rather than via WPF's Left/Top:
+    // those are DIPs that WPF converts using the window's *current* DPI, which is wrong whenever
+    // the destination monitor's scaling differs from the one the bar was last shown on.
+    public const uint SWP_NOSIZE = 0x0001;
+    public const uint SWP_NOZORDER = 0x0004;
+    public const uint SWP_NOACTIVATE = 0x0010;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
     // --- Token elevation (UIPI pre-check) ---
     public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
@@ -164,7 +188,12 @@ public static class NativeMethods
     // --- SendInput (clipboard-paste injection) ---
     public const uint INPUT_KEYBOARD = 1;
     public const uint KEYEVENTF_KEYUP = 0x0002;
+    public const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
+    public const int VK_C = 0x43;
+    public const int VK_LEFT = 0x25;
+    public const int VK_RIGHT = 0x27;
     public const int VK_V = 0x56;
+    public const int VK_RETURN = 0x0D;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct KEYBDINPUT
@@ -215,4 +244,24 @@ public static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    // --- DWM window attributes (dark-caption sync, quiet-ledger-theme-system ticket 03) ---
+    // DWMWA_USE_IMMERSIVE_DARK_MODE only got its stable value (20) in Windows 10 20H1 (build
+    // 19041); earlier Windows 10 builds recognize a since-superseded value (19) for the same
+    // effect. Both are harmless no-ops on Windows 8.1 (the app manifest's other supported OS):
+    // DwmSetWindowAttribute rejects an attribute it doesn't recognize with a failure HRESULT
+    // rather than throwing.
+    public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    public const int DWMWA_USE_IMMERSIVE_DARK_MODE_PRE20H1 = 19;
+
+    // --- DWM system backdrop (Mica), quiet-ledger-theme-system ticket 04 ---
+    // DWMWA_SYSTEMBACKDROP_TYPE only exists from Windows 11 22H2 (build 22621) onward. Callers
+    // gate on the build number before ever setting this attribute, so the fallback for every
+    // earlier Windows (including the Windows 8.1/10 support the app manifest still claims) is
+    // "don't call this," not "call it and let DWM reject it."
+    public const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
+    public const int DWMSBT_MAINWINDOW = 2; // Mica
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
 }

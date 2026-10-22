@@ -1,0 +1,15 @@
+<!doctype html>
+<!-- The Overlay (spec §7): the window is exactly #stage, transparent everywhere but the pill.
+     The host sets data-theme and data-reduced-motion before first paint; these defaults only
+     apply in a plain browser on the mock bridge. The build adds the page CSP. -->
+<html lang="en" data-theme="light" data-first-paint>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VoiceCtrl Overlay</title>
+  </head>
+  <body>
+    <div id="stage" class="ov-stage"></div>
+    <script type="module" src="/src/overlay/main.ts"></script>
+  </body>
+</html>

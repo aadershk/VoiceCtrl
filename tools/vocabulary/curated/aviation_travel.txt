@@ -1,0 +1,633 @@
+KLM
+Air France
+Lufthansa
+Lufthansa CityLine
+Eurowings
+Swiss
+Austrian Airlines
+Brussels Airlines
+British Airways
+easyJet
+Ryanair
+Wizz Air
+Vueling
+Iberia
+Iberia Express
+TAP Air Portugal
+Alitalia
+ITA Airways
+Aegean
+Olympic Air
+Turkish Airlines
+Pegasus
+SunExpress
+Aeroflot
+LOT Polish Airlines
+Czech Airlines
+Finnair
+SAS
+Scandinavian Airlines
+Norwegian
+Widerøe
+Icelandair
+PLAY
+Aer Lingus
+Transavia
+TUI
+Jet2
+Condor
+Corendon
+Martinair
+Emirates
+Etihad
+Qatar Airways
+Saudia
+Gulf Air
+Oman Air
+Kuwait Airways
+Royal Jordanian
+Middle East Airlines
+EgyptAir
+Royal Air Maroc
+Tunisair
+Air Algerie
+Ethiopian Airlines
+Kenya Airways
+South African Airways
+RwandAir
+Air Tanzania
+Uganda Airlines
+Air India
+IndiGo
+SpiceJet
+Vistara
+Akasa
+GoFirst
+Singapore Airlines
+Scoot
+Thai Airways
+AirAsia
+Malaysia Airlines
+Garuda Indonesia
+Lion Air
+Philippine Airlines
+Cebu Pacific
+Vietnam Airlines
+VietJet
+Cathay Pacific
+Hong Kong Airlines
+China Airlines
+EVA Air
+Air China
+China Eastern
+China Southern
+Hainan Airlines
+Japan Airlines
+ANA
+All Nippon Airways
+Korean Air
+Asiana
+Jeju Air
+Qantas
+Jetstar
+Virgin Australia
+Air New Zealand
+American Airlines
+Delta
+United
+Southwest
+JetBlue
+Alaska Airlines
+Spirit
+Frontier
+Hawaiian Airlines
+Air Canada
+WestJet
+Porsche
+LATAM
+Avianca
+Aeromexico
+Copa
+Azul
+GOL
+Aerolineas Argentinas
+Boeing
+Airbus
+Embraer
+Bombardier
+ATR
+De Havilland
+Dornier
+Fokker
+Cessna
+Piper
+Gulfstream
+Cirrus
+Pilatus
+Antonov
+Ilyushin
+Tupolev
+Sukhoi
+COMAC
+Mitsubishi SpaceJet
+Concorde
+Dreamliner
+Jumbo jet
+A220
+A318
+A319
+A320
+A320neo
+A321
+A321neo
+A330
+A340
+A350
+A380
+Boeing 707
+Boeing 717
+Boeing 727
+Boeing 737
+Boeing 747
+Boeing 757
+Boeing 767
+Boeing 777
+Boeing 787
+737 MAX
+E175
+E190
+E195
+CRJ
+Dash 8
+Q400
+ATR 72
+Saab 340
+Fokker 70
+Fokker 100
+Rolls-Royce
+Pratt and Whitney
+General Electric
+CFM International
+CFM LEAP
+CFM56
+Honeywell
+Safran
+MTU
+Collins Aerospace
+Thales
+Leonardo
+Dassault
+Lockheed Martin
+Northrop Grumman
+Raytheon
+BAE Systems
+Schiphol
+Eindhoven
+Rotterdam The Hague
+Groningen Eelde
+Maastricht Aachen
+Heathrow
+Gatwick
+Stansted
+Luton
+City Airport
+Manchester
+Edinburgh
+Glasgow
+Birmingham
+Bristol
+Dublin
+Shannon
+Cork
+Charles de Gaulle
+Orly
+Beauvais
+Nice
+Marseille
+Lyon
+Toulouse
+Bordeaux
+Frankfurt
+Munich
+Berlin Brandenburg
+Hamburg
+Dusseldorf
+Cologne Bonn
+Stuttgart
+Hanover
+Nuremberg
+Zurich
+Geneva
+Basel
+Vienna
+Salzburg
+Innsbruck
+Brussels Zaventem
+Charleroi
+Liege
+Antwerp
+Luxembourg Findel
+Madrid Barajas
+Barcelona El Prat
+Palma de Mallorca
+Malaga
+Alicante
+Valencia
+Seville
+Bilbao
+Tenerife
+Gran Canaria
+Lanzarote
+Ibiza
+Menorca
+Lisbon Humberto Delgado
+Porto
+Faro
+Madeira
+Azores
+Rome Fiumicino
+Ciampino
+Milan Malpensa
+Linate
+Bergamo Orio al Serio
+Venice Marco Polo
+Bologna
+Pisa
+Naples
+Catania
+Palermo
+Athens Eleftherios Venizelos
+Thessaloniki
+Heraklion
+Rhodes
+Corfu
+Istanbul Airport
+Sabiha Gokcen
+Ankara Esenboga
+Antalya
+Copenhagen Kastrup
+Billund
+Stockholm Arlanda
+Gothenburg Landvetter
+Oslo Gardermoen
+Bergen Flesland
+Helsinki Vantaa
+Reykjavik Keflavik
+Warsaw Chopin
+Krakow Balice
+Gdansk Lech Walesa
+Wroclaw
+Prague Vaclav Havel
+Budapest Ferenc Liszt
+Bucharest Otopeni
+Sofia
+Belgrade Nikola Tesla
+Zagreb
+Ljubljana
+Riga
+Tallinn
+Vilnius
+Kyiv Boryspil
+Moscow Sheremetyevo
+Domodedovo
+Vnukovo
+Saint Petersburg Pulkovo
+Dubai International
+Dubai World Central
+Abu Dhabi
+Doha Hamad
+Riyadh King Khalid
+Jeddah King Abdulaziz
+Muscat
+Kuwait
+Bahrain
+Tel Aviv Ben Gurion
+Amman Queen Alia
+Beirut Rafic Hariri
+Cairo
+Casablanca Mohammed V
+Marrakech Menara
+Tunis Carthage
+Algiers
+Lagos Murtala Muhammed
+Accra Kotoka
+Nairobi Jomo Kenyatta
+Addis Ababa Bole
+Johannesburg OR Tambo
+Cape Town
+Durban
+Mumbai Chhatrapati Shivaji
+Delhi Indira Gandhi
+Bengaluru Kempegowda
+Chennai
+Hyderabad Rajiv Gandhi
+Kolkata Netaji Subhas Chandra Bose
+Kochi
+Thiruvananthapuram
+Goa Dabolim
+Colombo Bandaranaike
+Kathmandu Tribhuvan
+Dhaka Hazrat Shahjalal
+Karachi Jinnah
+Lahore Allama Iqbal
+Islamabad
+Bangkok Suvarnabhumi
+Don Mueang
+Phuket
+Kuala Lumpur
+Singapore Changi
+Jakarta Soekarno-Hatta
+Bali Ngurah Rai
+Manila Ninoy Aquino
+Hanoi Noi Bai
+Ho Chi Minh Tan Son Nhat
+Hong Kong
+Macau
+Taipei Taoyuan
+Beijing Capital
+Beijing Daxing
+Shanghai Pudong
+Hongqiao
+Guangzhou Baiyun
+Shenzhen Bao'an
+Chengdu Tianfu
+Tokyo Haneda
+Narita
+Osaka Kansai
+Itami
+Nagoya Chubu
+Seoul Incheon
+Gimpo
+Sydney Kingsford Smith
+Melbourne Tullamarine
+Brisbane
+Perth
+Auckland
+Wellington
+John F. Kennedy
+LaGuardia
+Newark Liberty
+Boston Logan
+Philadelphia
+Washington Dulles
+Reagan National
+Baltimore
+Atlanta Hartsfield-Jackson
+Miami
+Orlando
+Tampa
+Charlotte
+Chicago O'Hare
+Midway
+Detroit
+Minneapolis
+Dallas Fort Worth
+Houston George Bush
+Denver
+Salt Lake City
+Phoenix Sky Harbor
+Las Vegas Harry Reid
+Los Angeles
+San Francisco
+San Jose
+Seattle-Tacoma
+Portland
+Anchorage
+Honolulu
+Toronto Pearson
+Montreal Trudeau
+Vancouver
+Calgary
+Mexico City Benito Juarez
+Cancun
+Guadalajara
+Bogota El Dorado
+Lima Jorge Chavez
+Santiago Arturo Merino Benitez
+Buenos Aires Ezeiza
+Sao Paulo Guarulhos
+Rio de Janeiro Galeao
+Panama Tocumen
+Havana Jose Marti
+Load factor
+Revenue management
+Yield management
+Overbooking
+No-show
+Spill
+Spoilage
+Fare class
+Booking class
+Fare basis
+Fare ladder
+Nesting
+Bid price
+EMSR
+Dynamic pricing
+Origin and destination
+O and D
+Hub and spoke
+Point to point
+Codeshare
+Interline
+Alliance
+Star Alliance
+SkyTeam
+Oneworld
+Slot
+Slot coordination
+IATA
+ICAO
+FAA
+EASA
+CAA
+Eurocontrol
+Air traffic control
+Air traffic management
+NOTAM
+METAR
+TAF
+SIGMET
+ATIS
+ILS
+VOR
+DME
+GPS
+RNAV
+RNP
+ADS-B
+TCAS
+EGPWS
+FMS
+FADEC
+ACARS
+Autopilot
+Autoland
+Go-around
+Holding pattern
+Standard instrument departure
+Standard terminal arrival
+Instrument flight rules
+Visual flight rules
+Cabin crew
+Flight deck
+First officer
+Captain
+Dispatcher
+Loadmaster
+Ground handling
+Turnaround
+Pushback
+Pier
+Jet bridge
+Apron
+Taxiway
+Runway
+Threshold
+Crosswind
+Tailwind
+Windshear
+Turbulence
+De-icing
+Ballast
+Block time
+Flight time
+Rotation
+Aircraft on ground
+AOG
+MRO
+Maintenance, repair and overhaul
+Line maintenance
+Base maintenance
+A check
+B check
+C check
+D check
+Heavy check
+Borescope
+Boroscope
+Non-destructive testing
+Airworthiness
+Airworthiness directive
+Service bulletin
+Maintenance planning document
+MPD
+MEL
+CDL
+Minimum equipment list
+Configuration deviation list
+Type certificate
+Wet lease
+Dry lease
+ACMI
+Sale and leaseback
+Available seat kilometres
+Available seat kilometers
+Revenue passenger kilometres
+Revenue passenger kilometers
+RASK
+CASK
+RASM
+CASM
+Yield
+Stage length
+Fuel burn
+Sustainable aviation fuel
+SAF
+Carbon offsetting
+CORSIA
+Emissions trading
+Jet fuel
+Kerosene
+Fuel hedging
+Cargo
+Belly cargo
+Freighter
+Passenger
+Boarding pass
+Check-in
+Baggage
+Hold luggage
+Hand luggage
+Carry-on
+Lounge
+Frequent flyer
+Miles
+Tier status
+Upgrade
+Standby
+Layover
+Stopover
+Connection
+Minimum connect time
+Visa
+Passport
+Schengen
+Customs
+Immigration
+Duty free
+Eurostar
+Thalys
+Deutsche Bahn
+ICE
+TGV
+Trenitalia
+Italo
+Renfe
+AVE
+NS
+Nederlandse Spoorwegen
+SNCB
+SBB
+OBB
+SNCF
+Amtrak
+Shinkansen
+Flixbus
+Eurolines
+Greyhound
+Megabus
+Uber
+Lyft
+Bolt
+Grab
+Careem
+Waze
+Google Maps
+Citymapper
+Moovit
+Booking.com
+Expedia
+Kayak
+Skyscanner
+Momondo
+Trivago
+Airbnb
+Vrbo
+Hostelworld
+Tripadvisor
+Lonely Planet
+Rough Guides
+Michelin
+Hilton
+Marriott
+Hyatt
+Accor
+Ibis
+Novotel
+Sofitel
+Radisson
+InterContinental
+Holiday Inn
+Best Western
+Four Seasons
+Ritz-Carlton
+Mandarin Oriental
+Shangri-La
+Taj
+Oberoi
+Aman
+Citizen M
+Moxy
+Premier Inn
+Travelodge

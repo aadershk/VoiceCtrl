@@ -21,7 +21,7 @@ public static partial class DictionaryCorrector
     /// speaker using ordinary English than a misheard proper noun. Without this, a two-letter
     /// difference is enough to turn "for" into a term like "Ford" on every dictation.
     /// </summary>
-    private static readonly HashSet<string> CommonWords = new(StringComparer.OrdinalIgnoreCase)
+    internal static readonly HashSet<string> CommonWords = new(StringComparer.OrdinalIgnoreCase)
     {
         "the", "and", "for", "are", "but", "not", "you", "all", "any", "can", "had", "her", "was",
         "one", "our", "out", "day", "get", "has", "him", "his", "how", "its", "may", "new", "now",
@@ -36,7 +36,44 @@ public static partial class DictionaryCorrector
         "about", "after", "again", "could", "every", "first", "found", "great", "house", "large",
         "learn", "never", "other", "place", "point", "right", "small", "sound", "still", "study",
         "their", "there", "these", "those", "thought", "through", "before", "because", "should",
+        "a", "an", "as", "at", "be", "by", "do", "he", "if", "in", "is", "it", "me", "my", "no",
+        "of", "on", "or", "so", "to", "up", "us", "we", "am", "i",
     };
+
+    /// <summary>
+    /// Applies the Dictionary to <paramref name="text"/>: first every "also heard as" phrase
+    /// becomes its word, then the near-miss correction below runs on the words. The phrases are
+    /// the user's own word for what the recogniser writes, so they are replaced exactly and
+    /// without the guards the guesses need: whole words only, ignoring case, longest first.
+    /// </summary>
+    public static string Apply(string text, IReadOnlyList<DictionaryEntry> dictionary)
+    {
+        if (dictionary.Count == 0 || string.IsNullOrEmpty(text))
+        {
+            return text;
+        }
+
+        var wordByPhrase = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (DictionaryEntry entry in dictionary)
+        {
+            foreach (string phrase in entry.AlsoHeardAs)
+            {
+                // Two words claiming the same phrase: the first listed wins, as in Parse.
+                wordByPhrase.TryAdd(phrase, entry.Word);
+            }
+        }
+
+        if (wordByPhrase.Count > 0)
+        {
+            string alternatives = string.Join('|', wordByPhrase.Keys.OrderByDescending(phrase => phrase.Length).Select(Regex.Escape));
+            var pattern = new Regex(
+                $@"(?<![\p{{L}}\p{{Nd}}])(?:{alternatives})(?![\p{{L}}\p{{Nd}}])",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            text = pattern.Replace(text, match => wordByPhrase[match.Value]);
+        }
+
+        return Apply(text, dictionary.Select(entry => entry.Word).ToList());
+    }
 
     /// <summary>
     /// Applies the dictionary to <paramref name="text"/>. Terms are matched on whole words only,
@@ -66,29 +103,37 @@ public static partial class DictionaryCorrector
             .ThenByDescending(term => term.Length))
         {
             int termWordCount = CountWords(term);
+            string termKey = PhoneticKey.Encode(term);
 
-            for (int index = 0; index + termWordCount <= words.Count; index++)
+            // The recogniser may have split a term ("kuber netties") or run two words together
+            // ("sherpaonnx"), so the span tried is the term's own word count and one either side.
+            foreach (int windowWords in WindowSizes(termWordCount))
             {
-                if (IsAnyClaimed(claimed, index, termWordCount))
+                for (int index = 0; index + windowWords <= words.Count; index++)
                 {
-                    continue;
+                    if (IsAnyClaimed(claimed, index, windowWords))
+                    {
+                        continue;
+                    }
+
+                    int start = words[index].Index;
+                    Match lastWord = words[index + windowWords - 1];
+                    int length = lastWord.Index + lastWord.Length - start;
+                    ReadOnlySpan<char> candidate = text.AsSpan(start, length);
+
+                    bool sameShape = windowWords == termWordCount;
+                    if (!(sameShape && ShouldCorrect(candidate, term)) && !SoundsLike(candidate, term, termKey))
+                    {
+                        continue;
+                    }
+
+                    for (int offset = 0; offset < windowWords; offset++)
+                    {
+                        claimed[index + offset] = true;
+                    }
+
+                    edits.Add((start, length, term));
                 }
-
-                int start = words[index].Index;
-                Match lastWord = words[index + termWordCount - 1];
-                int length = lastWord.Index + lastWord.Length - start;
-
-                if (!ShouldCorrect(text.AsSpan(start, length), term))
-                {
-                    continue;
-                }
-
-                for (int offset = 0; offset < termWordCount; offset++)
-                {
-                    claimed[index + offset] = true;
-                }
-
-                edits.Add((start, length, term));
             }
         }
 
@@ -105,6 +150,64 @@ public static partial class DictionaryCorrector
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>The term's own length in words first, so an exact-shape match claims its words
+    /// before a looser split or merge can.</summary>
+    private static IEnumerable<int> WindowSizes(int termWordCount)
+    {
+        yield return termWordCount;
+        yield return termWordCount + 1;
+        if (termWordCount > 1)
+        {
+            yield return termWordCount - 1;
+        }
+    }
+
+    /// <summary>
+    /// Whether the transcript's words sound like the term. The key is a consonant skeleton, so the
+    /// bar is high where little is left to compare: a short key must match exactly and the first
+    /// sound must always agree, because a recogniser rarely gets the opening of a word wrong while
+    /// getting the rest right, and agreeing there removes most false matches.
+    /// </summary>
+    private static bool SoundsLike(ReadOnlySpan<char> candidate, string term, string termKey)
+    {
+        if (termKey.Length < 3 || term.Length > CustomDictionary.MaxTermLength)
+        {
+            return false;
+        }
+
+        string candidateText = candidate.ToString();
+        if (candidateText.Equals(term, StringComparison.Ordinal) || CommonWords.Contains(candidateText))
+        {
+            return false;
+        }
+
+        // A split or merge swallows neighbouring words into the span; if one of them is plain
+        // English the speaker said it ("Kubectl on" must not become "Kubernetes").
+        foreach (Match word in WordPattern().Matches(candidateText))
+        {
+            if (CommonWords.Contains(word.Value))
+            {
+                return false;
+            }
+        }
+
+        string candidateKey = PhoneticKey.Encode(candidateText);
+        if (candidateKey.Length == 0 || candidateKey[0] != termKey[0])
+        {
+            return false;
+        }
+
+        int budget = termKey.Length switch
+        {
+            < 5 => 0,
+            < 8 => 1,
+            _ => 2,
+        };
+
+        return Math.Abs(candidateKey.Length - termKey.Length) <= budget
+            && PhoneticKey.Distance(candidateKey, termKey) <= budget;
     }
 
     private static bool ShouldCorrect(ReadOnlySpan<char> candidate, string term)

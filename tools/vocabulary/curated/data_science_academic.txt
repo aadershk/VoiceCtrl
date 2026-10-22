@@ -1,0 +1,510 @@
+NumPy
+SciPy
+Pandas
+Polars
+Dask
+Vaex
+Modin
+Ray
+Numba
+Cython
+PyTorch
+TensorFlow
+Keras
+JAX
+Flax
+Theano
+MXNet
+Caffe
+Scikit-learn
+XGBoost
+LightGBM
+CatBoost
+Statsmodels
+Prophet
+NeuralProphet
+Darts
+Sktime
+tsfresh
+Gensim
+SpaCy
+NLTK
+Transformers
+Tokenizers
+Datasets
+Accelerate
+PEFT
+LoRA
+QLoRA
+DeepSpeed
+Megatron
+FSDP
+OpenCV
+Pillow
+Albumentations
+Detectron
+YOLO
+ResNet
+VGG
+Inception
+EfficientNet
+MobileNet
+DenseNet
+AlexNet
+LeNet
+UNet
+Transformer
+BERT
+RoBERTa
+DistilBERT
+ALBERT
+ELECTRA
+XLNet
+GPT
+T5
+BART
+Longformer
+Reformer
+Performer
+Mamba
+RWKV
+Mixtral
+Falcon
+Vicuna
+Alpaca
+Phi
+Gemma
+Granite
+Optuna
+Hyperopt
+Ray Tune
+Weights and Biases
+Neptune
+Comet
+DVC
+MLflow
+Kedro
+Metaflow
+BentoML
+Seldon
+KServe
+Triton
+SHAP
+LIME
+Captum
+InterpretML
+Alibi
+Fairlearn
+AIF360
+DoWhy
+EconML
+CausalML
+CausalNex
+Pgmpy
+PyMC
+Stan
+Pyro
+NumPyro
+TensorFlow Probability
+Edward
+Turing
+JAGS
+BUGS
+brms
+lme4
+glmnet
+caret
+tidymodels
+tidyverse
+dplyr
+tidyr
+ggplot
+ggplot2
+purrr
+readr
+tibble
+stringr
+forcats
+lubridate
+data.table
+Shiny
+RStudio
+Posit
+CRAN
+Bioconductor
+Rcpp
+knitr
+rmarkdown
+Quarto
+Sweave
+LaTeX
+Overleaf
+BibTeX
+Biber
+BibLaTeX
+TikZ
+pgfplots
+Beamer
+Zotero
+Mendeley
+EndNote
+Scopus
+Web of Science
+Google Scholar
+Semantic Scholar
+arXiv
+SSRN
+JSTOR
+PubMed
+ResearchGate
+ORCID
+DOI
+Elsevier
+Springer
+Wiley
+Taylor and Francis
+Sage
+Cambridge University Press
+Oxford University Press
+MIT Press
+Nature
+Science
+Lancet
+Cell
+Econometrica
+Heteroskedasticity
+Homoskedasticity
+Heteroscedasticity
+Multicollinearity
+Autocorrelation
+Endogeneity
+Exogeneity
+Instrumental variable
+Two-stage least squares
+Difference in differences
+Regression discontinuity
+Propensity score
+Synthetic control
+Event study
+Fixed effects
+Random effects
+Hausman test
+Breusch-Pagan
+Durbin-Watson
+Dickey-Fuller
+Phillips-Perron
+Granger causality
+Cointegration
+Johansen
+Vector autoregression
+ARIMA
+SARIMA
+SARIMAX
+GARCH
+ARCH
+ARMA
+Kalman filter
+Hidden Markov
+Markov chain
+Monte Carlo
+Metropolis-Hastings
+Gibbs sampling
+Hamiltonian
+Bootstrap
+Jackknife
+Cross-validation
+Overfitting
+Underfitting
+Regularization
+Lasso
+Ridge
+Elastic net
+Gradient boosting
+Random forest
+Decision tree
+Support vector machine
+Naive Bayes
+Logistic regression
+Linear regression
+Quantile regression
+Poisson regression
+Negative binomial
+Tobit
+Probit
+Logit
+Multinomial
+Ordinal
+Survival analysis
+Kaplan-Meier
+Cox proportional hazards
+Weibull
+Bayesian
+Frequentist
+Prior
+Posterior
+Likelihood
+Marginal likelihood
+Evidence
+Credible interval
+Confidence interval
+P-value
+Type one error
+Type two error
+Bonferroni
+Benjamini-Hochberg
+Wilcoxon
+Mann-Whitney
+Kruskal-Wallis
+Kolmogorov-Smirnov
+Shapiro-Wilk
+Anderson-Darling
+Chi-squared
+Student t-test
+ANOVA
+MANOVA
+Tukey
+Fisher
+Pearson
+Spearman
+Kendall
+Cramer
+Mahalanobis
+Euclidean
+Manhattan
+Hamming
+Jaccard
+Cosine similarity
+Levenshtein
+Principal component analysis
+t-SNE
+UMAP
+Autoencoder
+Variational autoencoder
+Generative adversarial network
+Diffusion model
+Reinforcement learning
+Q-learning
+Policy gradient
+Actor-critic
+Bandit
+Thompson sampling
+Upper confidence bound
+Backpropagation
+Gradient descent
+Stochastic gradient descent
+Adam
+AdamW
+RMSprop
+Adagrad
+Momentum
+Dropout
+Batch normalization
+Layer normalization
+Attention
+Self-attention
+Embedding
+Tokenization
+Perplexity
+BLEU
+ROUGE
+Word error rate
+Precision
+Recall
+F1 score
+ROC
+AUC
+Calibration
+Brier score
+Log loss
+Isotonic regression
+Platt scaling
+Conformal prediction
+Causal forest
+Double machine learning
+Doubly robust
+Meta-learner
+Uplift
+Heterogeneous treatment effects
+Average treatment effect
+Local average treatment effect
+Callaway
+Sant'Anna
+Goodman-Bacon
+Sun and Abraham
+de Chaisemartin
+D'Haultfoeuille
+Borusyak
+Imbens
+Angrist
+Card
+Krueger
+Rubin
+Pearl
+Heckman
+Athey
+Wager
+Chernozhukov
+Duflo
+Banerjee
+Kremer
+Acemoglu
+Robinson
+Piketty
+Stiglitz
+Krugman
+Keynes
+Hayek
+Friedman
+Samuelson
+Solow
+Arrow
+Debreu
+Nash
+Shapley
+Roth
+Tirole
+Holmstrom
+Hart
+Milgrom
+Wilson
+Kahneman
+Tversky
+Thaler
+Sunstein
+Fama
+Shiller
+Hansen
+Sims
+Sargent
+Lucas
+Prescott
+Kydland
+Mundell
+Modigliani
+Miller
+Merton
+Scholes
+Black
+Markowitz
+Sharpe
+Coase
+Ostrom
+Becker
+Mincer
+Tobin
+Phillips
+Okun
+Laffer
+Gini
+Lorenz
+Pareto
+Cobb-Douglas
+Leontief
+Hicks
+Marshall
+Walras
+Ricardo
+Malthus
+Mill
+Smith
+Marx
+Schumpeter
+Minsky
+Kalecki
+Bayes
+Laplace
+Gauss
+Euler
+Fermat
+Fibonacci
+Riemann
+Hilbert
+Turing
+Shannon
+Kolmogorov
+Fourier
+Lagrange
+Cauchy
+Poisson
+Bernoulli
+Markov
+Chebyshev
+Galton
+Karl Pearson
+Gosset
+Neyman
+Wald
+Tukey
+Efron
+Tibshirani
+Hastie
+Friedman
+Breiman
+Vapnik
+Hinton
+LeCun
+Bengio
+Schmidhuber
+Ng
+Goodfellow
+Karpathy
+Sutskever
+Vaswani
+Hochreiter
+Fei-Fei Li
+Hassabis
+Sutton
+Barto
+Silver
+Russell
+Norvig
+Minsky
+McCarthy
+Simon
+Newell
+Dijkstra
+Knuth
+Lamport
+Liskov
+Backus
+Ritchie
+Thompson
+Kernighan
+Stroustrup
+Gosling
+Rossum
+Wall
+Matsumoto
+Hejlsberg
+Torvalds
+Stallman
+Berners-Lee
+Cerf
+Kahn
+Lovelace
+Babbage
+Hopper
+Neumann
+Eckert
+Mauchly
+Wozniak
+Jobs
+Gates
+Allen
+Ballmer
+Nadella
+Pichai
+Bezos
+Zuckerberg
+Musk
+Page
+Brin
+Huang
+Su
+Altman
+Amodei
+Sundar
+Dorsey
+Ma
+Son
+Ive

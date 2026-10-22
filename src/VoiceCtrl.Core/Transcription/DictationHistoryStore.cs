@@ -6,110 +6,276 @@ using VoiceCtrl.Core.Logging;
 namespace VoiceCtrl.Core.Transcription;
 
 /// <summary>
-/// Persists the text and timestamp of the last ~50 Dictations to
-/// %LocalAppData%\VoiceCtrl\history.json — never audio, per CONTEXT.md's Dictations definition.
-/// Deliberately a separate store from <see cref="LastTranscriptionStore"/>, which stays in-memory
-/// only for the tray's single most-recent-transcript recovery; this one is what the Hub's Dictations
-/// screen reads and searches.
+/// The kept Dictations (CONTEXT: Dictations, Retention) in %LocalAppData%\VoiceCtrl\history.json:
+/// text, time and app, never audio. What is kept follows Keep Dictations: the last 50, the last
+/// 24 hours, or nothing on disk (spec §5.3). The Dictations screen reads it; deleting a row can be
+/// undone, Clear all can't.
+/// <para>
+/// Separate from <see cref="LastTranscriptionStore"/>, which holds the latest Transcription in
+/// memory for Paste Again, so Paste Again still works when nothing is kept.
+/// </para>
 /// </summary>
 public sealed class DictationHistoryStore
 {
-    /// <summary>Bounds the file's growth: a recovery aid for the last few things said, not an
-    /// unbounded transcript log.</summary>
+    /// <summary>How many Keep Dictations' "last 50" keeps.</summary>
     public const int MaxEntries = 50;
 
+    private static readonly TimeSpan DayWindow = TimeSpan.FromHours(24);
+
+    /// <summary>How many deleted rows Undo can still bring back. The toast's Undo only ever needs
+    /// the latest; a few more cover deleting several rows in quick succession.</summary>
+    private const int UndoCapacity = 10;
+
     private readonly string _filePath;
+    private readonly TimeProvider _clock;
     private readonly object _gate = new();
     private readonly List<DictationRecord> _entriesOldestFirst;
+    private readonly List<DictationRecord> _recentlyRemoved = [];
+    private KeepDictations _keep;
 
     /// <summary>
-    /// Raised after a successful <see cref="Add"/> or <see cref="Remove"/>. The Hub's Dictations
-    /// screen subscribes while open so a Dictation completed elsewhere (the Overlay) shows up
-    /// immediately instead of only on the next time the Hub is opened fresh. Raised outside the
-    /// lock, and on whatever thread called Add/Remove (today, always the single UI dispatcher
-    /// thread both windows share), so a subscriber touching UI needs no extra marshalling.
+    /// Raised after every change: a Dictation added, deleted, undone or cleared, or Keep Dictations
+    /// pruning something. Raised outside the lock, on the thread that made the change (the UI
+    /// thread, for every caller today).
     /// </summary>
     public event Action? Changed;
 
-    private DictationHistoryStore(string filePath, List<DictationRecord> entriesOldestFirst)
+    private DictationHistoryStore(string filePath, List<DictationRecord> entriesOldestFirst, KeepDictations keep, TimeProvider clock)
     {
         _filePath = filePath;
         _entriesOldestFirst = entriesOldestFirst;
+        _keep = keep;
+        _clock = clock;
+
+        // A shorter Keep Dictations chosen last run (or a clock that moved on) applies from the start.
+        if (Prune())
+        {
+            Save();
+        }
     }
 
-    public static DictationHistoryStore Load() => Load(DefaultFilePath());
+    public static DictationHistoryStore Load(KeepDictations keep) => Load(UserDataPaths.History, keep, TimeProvider.System);
 
     /// <summary>Test seam: an in-memory store with no backing file.</summary>
-    internal static DictationHistoryStore ForTesting() => new(filePath: string.Empty, []);
+    internal static DictationHistoryStore ForTesting(KeepDictations keep = KeepDictations.Last50, TimeProvider? clock = null) =>
+        new(filePath: string.Empty, [], keep, clock ?? TimeProvider.System);
 
-    internal static DictationHistoryStore Load(string filePath) => new(filePath, ReadPersisted(filePath));
+    internal static DictationHistoryStore Load(string filePath, KeepDictations keep, TimeProvider clock) =>
+        new(filePath, ReadPersisted(filePath), keep, clock);
 
-    /// <summary>Newest first, since that is what a Dictations list shows at the top.</summary>
+    /// <summary>Keep Dictations. A shorter choice prunes at once, on disk too.</summary>
+    public KeepDictations Keep
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _keep;
+            }
+        }
+
+        set
+        {
+            lock (_gate)
+            {
+                if (_keep == value)
+                {
+                    return;
+                }
+
+                _keep = value;
+                if (!Prune())
+                {
+                    return;
+                }
+
+                Save();
+            }
+
+            Changed?.Invoke();
+        }
+    }
+
+    /// <summary>How many kept Dictations choosing <paramref name="keep"/> would delete, so
+    /// Settings can say so before it does.</summary>
+    public int WouldRemove(KeepDictations keep)
+    {
+        lock (_gate)
+        {
+            return keep switch
+            {
+                KeepDictations.None => _entriesOldestFirst.Count,
+                KeepDictations.Last24Hours => _entriesOldestFirst.Count(e => e.TimestampUtc < _clock.GetUtcNow().UtcDateTime - DayWindow),
+                _ => Math.Max(0, _entriesOldestFirst.Count - MaxEntries),
+            };
+        }
+    }
+
+    /// <summary>Newest first, as the Dictations screen lists them. In "last 24 hours", anything
+    /// that has aged out since the last change is dropped here.</summary>
     public IReadOnlyList<DictationRecord> Entries
     {
         get
         {
             lock (_gate)
             {
+                if (Prune())
+                {
+                    Save();
+                }
+
                 return Enumerable.Reverse(_entriesOldestFirst).ToList();
             }
         }
     }
 
-    /// <summary>Entries whose text contains <paramref name="query"/>, newest first. A null or
-    /// whitespace query returns every entry, so the Hub's search box can call this unconditionally
-    /// instead of branching on whether the user has typed anything.</summary>
-    public IReadOnlyList<DictationRecord> Search(string? query)
-    {
-        IReadOnlyList<DictationRecord> entries = Entries;
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return entries;
-        }
-
-        return entries.Where(entry => entry.Text.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
-    }
-
-    /// <summary>
-    /// Removes one entry and persists immediately. Matched by reference — <paramref name="record"/>
-    /// must be one of the instances handed out by <see cref="Entries"/> or <see cref="Search"/>,
-    /// not a reconstructed copy, since DictationRecord has no id field of its own.
-    /// </summary>
-    public void Remove(DictationRecord record)
+    /// <summary>Records a completed Dictation and saves at once, whether or not the Hub is open.
+    /// Does nothing when Keep Dictations is None.</summary>
+    /// <param name="original">The text before Smart cleanup edited it, or null when it did not.</param>
+    public void Add(string text, string? appName = null, string? original = null)
     {
         lock (_gate)
         {
-            _entriesOldestFirst.Remove(record);
-            Save();
-        }
-
-        Changed?.Invoke();
-    }
-
-    /// <summary>
-    /// Records a completed Dictation and persists it immediately. Called once per Dictation
-    /// regardless of whether the Hub is open, since the point of a history is that it is already
-    /// there the next time someone opens it.
-    /// </summary>
-    public void Add(string text)
-    {
-        lock (_gate)
-        {
-            _entriesOldestFirst.Add(new DictationRecord { Text = text, TimestampUtc = DateTime.UtcNow });
-
-            while (_entriesOldestFirst.Count > MaxEntries)
+            if (_keep == KeepDictations.None)
             {
-                _entriesOldestFirst.RemoveAt(0);
+                return;
             }
 
+            _entriesOldestFirst.Add(new DictationRecord
+            {
+                Text = text,
+                TimestampUtc = _clock.GetUtcNow().UtcDateTime,
+                AppName = appName,
+                Original = original,
+            });
+            Prune();
             Save();
         }
 
         Changed?.Invoke();
     }
 
-    /// <summary>Best-effort, same reasoning as TranscriptionModeStore.Save: a failed write to
-    /// LocalAppData must never crash the dictation pipeline over a non-essential history file.</summary>
+    /// <summary>Puts a Dictation's Original back as its text and drops the Original: the one-click
+    /// restore after Smart cleanup. False when there is no such Dictation or nothing to restore.</summary>
+    public bool RestoreOriginal(Guid id)
+    {
+        lock (_gate)
+        {
+            int index = _entriesOldestFirst.FindIndex(e => e.Id == id);
+            if (index < 0 || _entriesOldestFirst[index].Original is not { } original)
+            {
+                return false;
+            }
+
+            DictationRecord record = _entriesOldestFirst[index];
+            _entriesOldestFirst[index] = new DictationRecord
+            {
+                Id = record.Id,
+                Text = original,
+                TimestampUtc = record.TimestampUtc,
+                AppName = record.AppName,
+            };
+            Save();
+        }
+
+        Changed?.Invoke();
+        return true;
+    }
+
+    /// <summary>Deletes one Dictation and saves. It stays in memory for <see cref="Undo"/>.</summary>
+    public bool Remove(Guid id)
+    {
+        lock (_gate)
+        {
+            int index = _entriesOldestFirst.FindIndex(e => e.Id == id);
+            if (index < 0)
+            {
+                return false;
+            }
+
+            _recentlyRemoved.Add(_entriesOldestFirst[index]);
+            if (_recentlyRemoved.Count > UndoCapacity)
+            {
+                _recentlyRemoved.RemoveAt(0);
+            }
+
+            _entriesOldestFirst.RemoveAt(index);
+            Save();
+        }
+
+        Changed?.Invoke();
+        return true;
+    }
+
+    /// <summary>The delete toast's Undo: puts a deleted Dictation back where its time places it.
+    /// False if it wasn't recently deleted, or Clear all has run since.</summary>
+    public bool Undo(Guid id)
+    {
+        lock (_gate)
+        {
+            int removed = _recentlyRemoved.FindIndex(e => e.Id == id);
+            if (removed < 0)
+            {
+                return false;
+            }
+
+            DictationRecord record = _recentlyRemoved[removed];
+            _recentlyRemoved.RemoveAt(removed);
+            int at = _entriesOldestFirst.FindIndex(e => e.TimestampUtc > record.TimestampUtc);
+            _entriesOldestFirst.Insert(at < 0 ? _entriesOldestFirst.Count : at, record);
+            Prune();
+            Save();
+        }
+
+        Changed?.Invoke();
+        return true;
+    }
+
+    /// <summary>Clear all Dictations: removes every one from this PC. It can't be undone.</summary>
+    public void Clear()
+    {
+        lock (_gate)
+        {
+            _entriesOldestFirst.Clear();
+            _recentlyRemoved.Clear();
+            Save();
+        }
+
+        Changed?.Invoke();
+    }
+
+    /// <summary>Drops whatever Keep Dictations no longer keeps. Call under the lock; true if
+    /// anything went, so the caller saves.</summary>
+    private bool Prune()
+    {
+        int before = _entriesOldestFirst.Count;
+        switch (_keep)
+        {
+            case KeepDictations.None:
+                _entriesOldestFirst.Clear();
+                _recentlyRemoved.Clear();
+                break;
+
+            case KeepDictations.Last24Hours:
+                DateTime cutoff = _clock.GetUtcNow().UtcDateTime - DayWindow;
+                _entriesOldestFirst.RemoveAll(e => e.TimestampUtc < cutoff);
+                break;
+
+            default:
+                if (_entriesOldestFirst.Count > MaxEntries)
+                {
+                    _entriesOldestFirst.RemoveRange(0, _entriesOldestFirst.Count - MaxEntries);
+                }
+
+                break;
+        }
+
+        return _entriesOldestFirst.Count != before;
+    }
+
+    /// <summary>Written atomically, so a crash mid-save can't leave a half file that reads as
+    /// corrupt and loses every Dictation. A failed write is logged, never thrown: the history
+    /// must not break the Dictation that is being recorded.</summary>
     private void Save()
     {
         if (_filePath.Length == 0)
@@ -119,19 +285,11 @@ public sealed class DictationHistoryStore
 
         try
         {
-            string? directory = Path.GetDirectoryName(_filePath);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            File.WriteAllText(_filePath, JsonSerializer.Serialize(_entriesOldestFirst));
+            AtomicFile.WriteAllBytes(_filePath, JsonSerializer.SerializeToUtf8Bytes(_entriesOldestFirst));
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-        }
-        catch (UnauthorizedAccessException)
-        {
+            SimpleFileLogger.LogInfo($"Couldn't save history.json: {ex.Message}");
         }
     }
 
@@ -145,24 +303,20 @@ public sealed class DictationHistoryStore
         try
         {
             List<DictationRecord>? persisted = JsonSerializer.Deserialize<List<DictationRecord>>(File.ReadAllText(filePath));
-            return persisted ?? [];
+
+            // Oldest first on disk, but a restored backup or a hand edit could be out of order.
+            return persisted?.OrderBy(e => e.TimestampUtc).ToList() ?? [];
         }
-        catch (IOException)
-        {
-            return [];
-        }
-        catch (UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return [];
         }
         catch (JsonException ex)
         {
-            // Corrupt history.json is treated as empty rather than crashing startup; the next Add
-            // overwrites it with valid content.
+            // A corrupt history.json reads as empty rather than stopping startup; the next change
+            // overwrites it.
             SimpleFileLogger.LogInfo($"history.json is not valid JSON, ignoring it: {ex.Message}");
             return [];
         }
     }
-
-    private static string DefaultFilePath() => UserDataPaths.History;
 }

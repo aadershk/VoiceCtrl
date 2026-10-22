@@ -32,4 +32,13 @@ public sealed class LastTranscriptionStore
             _text = text;
         }
     }
+
+    /// <summary>Clear all Dictations forgets this one too, so Paste Again has nothing left to paste.</summary>
+    public void Clear()
+    {
+        lock (_gate)
+        {
+            _text = null;
+        }
+    }
 }

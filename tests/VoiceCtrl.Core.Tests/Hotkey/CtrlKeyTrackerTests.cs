@@ -6,8 +6,8 @@ namespace VoiceCtrl.Core.Tests.Hotkey;
 
 public class CtrlKeyTrackerTests
 {
-    private static CtrlKeyTracker CreateTracker(long windowMs = 400) =>
-        new(windowMs, [NativeMethods.VK_LCONTROL, NativeMethods.VK_RCONTROL]);
+    private static CtrlKeyTracker CreateTracker(long windowMs = 400, Func<int, bool>? isKeyActuallyDown = null) =>
+        new(windowMs, [NativeMethods.VK_LCONTROL, NativeMethods.VK_RCONTROL], isKeyActuallyDown);
 
     [Fact]
     public void BareDoubleTap_WithinWindow_Fires()
@@ -163,6 +163,85 @@ public class CtrlKeyTrackerTests
         tracker.OnKeyUp(NativeMethods.VK_LCONTROL); // Left's long single hold releases.
 
         Assert.Equal(1, fireCount); // Left never paired with anything, so still just the one fire.
+    }
+
+    [Fact]
+    public void StaleIsDownFlagFromMissedKeyUp_CorrectsOnNextUnrelatedKeystroke_ThenDoubleTapWorks()
+    {
+        // Simulates Windows silently dropping a key-up (most reliably reproduced by opening the
+        // Start Menu and dismissing it by clicking elsewhere rather than pressing Win or Esc
+        // again): OnKeyUp never arrives for this press, so IsDown is stuck "down" even though the
+        // key has genuinely been released. A real Windows keydown for a key always means it's
+        // physically down right now, so the stuck key's OWN next press can never distinguish
+        // "fresh press" from "OS auto-repeat of a continuous hold" by checking itself — recovery
+        // instead piggybacks on the next unrelated key event, the same cross-check shape
+        // TriggerKeyTracker uses for its chord's other key.
+        bool leftCtrlActuallyDown = true;
+        CtrlKeyTracker tracker = CreateTracker(isKeyActuallyDown: vk => vk != NativeMethods.VK_LCONTROL || leftCtrlActuallyDown);
+        int fireCount = 0;
+        tracker.DoubleTapDetected += () => fireCount++;
+
+        tracker.OnKeyDown(NativeMethods.VK_LCONTROL, 0); // the press whose key-up gets lost.
+        leftCtrlActuallyDown = false; // the missed key-up: physically released, but OnKeyUp never arrives.
+
+        tracker.OnKeyDown(null, 100); // any unrelated keystroke gives the tracker a chance to notice.
+
+        // A genuine double-tap now works cleanly instead of being corrupted by the stale flag.
+        tracker.OnKeyDown(NativeMethods.VK_LCONTROL, 500);
+        tracker.OnKeyUp(NativeMethods.VK_LCONTROL);
+
+        tracker.OnKeyDown(NativeMethods.VK_LCONTROL, 700);
+        tracker.OnKeyUp(NativeMethods.VK_LCONTROL);
+
+        Assert.Equal(1, fireCount);
+    }
+
+    [Fact]
+    public void StaleFlagOnOneCtrlKey_CorrectsWhenTheOtherCtrlKeyIsPressed_ThenBothWorkIndependently()
+    {
+        // The other tracked Ctrl key's own genuine keydown is itself an "unrelated key event" that
+        // can reconcile Left's stale flag, same as any other key would — and doing so must not
+        // disturb Right's own independent detector.
+        bool leftCtrlActuallyDown = true;
+        CtrlKeyTracker tracker = CreateTracker(isKeyActuallyDown: vk => vk != NativeMethods.VK_LCONTROL || leftCtrlActuallyDown);
+        int fireCount = 0;
+        tracker.DoubleTapDetected += () => fireCount++;
+
+        tracker.OnKeyDown(NativeMethods.VK_LCONTROL, 0); // Left's key-up gets lost.
+        leftCtrlActuallyDown = false;
+
+        tracker.OnKeyDown(NativeMethods.VK_RCONTROL, 10);
+        tracker.OnKeyUp(NativeMethods.VK_RCONTROL);
+        tracker.OnKeyDown(NativeMethods.VK_RCONTROL, 60); // this press also reconciles Left's stale flag.
+        tracker.OnKeyUp(NativeMethods.VK_RCONTROL);
+
+        Assert.Equal(1, fireCount); // Right's own pair fired.
+
+        // Left recovers too, now that its flag has been reconciled via Right's activity.
+        tracker.OnKeyDown(NativeMethods.VK_LCONTROL, 500);
+        tracker.OnKeyUp(NativeMethods.VK_LCONTROL);
+        tracker.OnKeyDown(NativeMethods.VK_LCONTROL, 700);
+        tracker.OnKeyUp(NativeMethods.VK_LCONTROL);
+
+        Assert.Equal(2, fireCount); // Left's own pair also fires, independently.
+    }
+
+    [Fact]
+    public void GenuinelyHeldKeyWithInjectedRealStateCheck_StillTreatsAutorepeatAsNoOp()
+    {
+        // The injected real-state check must not interfere with normal OS auto-repeat: when it
+        // confirms the key is genuinely still down, a repeated keydown is still a no-op exactly as
+        // without the collaborator wired up, and a chord in progress stays chorded.
+        CtrlKeyTracker tracker = CreateTracker(isKeyActuallyDown: _ => true);
+        int fireCount = 0;
+        tracker.DoubleTapDetected += () => fireCount++;
+
+        tracker.OnKeyDown(NativeMethods.VK_LCONTROL, 0);
+        tracker.OnKeyDown(null, 10); // chord: 'C' down.
+        tracker.OnKeyDown(NativeMethods.VK_LCONTROL, 20); // autorepeat of the still-held Ctrl.
+        tracker.OnKeyUp(NativeMethods.VK_LCONTROL);
+
+        Assert.Equal(0, fireCount); // still chorded — autorepeat must not have cleared WasChorded.
     }
 
     [Fact]

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Writes ui/src/bridge/contracts.g.ts from the Core bridge contracts (spec §4). The Core
+       tests reference this project too, so the freshness test runs the same writer. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>VoiceCtrl.Tools.BridgeTypegen</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\VoiceCtrl.Core\VoiceCtrl.Core.csproj" />
+  </ItemGroup>
+
+</Project>

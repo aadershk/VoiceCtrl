@@ -1,0 +1,232 @@
+/*
+ * Fonts, element resets, the §4 type roles, the focus ring and the scrollbar.
+ * Faces are bundled (SIL OFL, see fonts/*-OFL.txt); nothing loads from a CDN at runtime.
+ */
+
+@font-face {
+  font-family: "Sora";
+  font-style: normal;
+  font-display: block;
+  font-weight: 100 800;
+  src: url("./fonts/sora-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Sora";
+  font-style: normal;
+  font-display: block;
+  font-weight: 100 800;
+  src: url("./fonts/sora-latin-ext-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Public Sans";
+  font-style: normal;
+  font-display: block;
+  font-weight: 100 900;
+  src: url("./fonts/public-sans-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Public Sans";
+  font-style: normal;
+  font-display: block;
+  font-weight: 100 900;
+  src: url("./fonts/public-sans-latin-ext-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-display: block;
+  font-weight: 200 800;
+  src: url("./fonts/newsreader-latin-opsz-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-display: block;
+  font-weight: 200 800;
+  src: url("./fonts/newsreader-latin-ext-opsz-normal.woff2") format("woff2-variations");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body,
+[data-theme] {
+  font-family: var(--font-text);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+/* Theme change is a colour fade (§10 rule 1); layout never moves with it. Zero specificity, so a
+ * component's own transition list wins (and must then include the colour properties it fades). */
+:where([data-theme], [data-theme] div, [data-theme] button, [data-theme] aside, [data-theme] main,
+  [data-theme] section, [data-theme] label, [data-theme] nav, [data-theme] header, [data-theme] span) {
+  transition-property: background-color, color, border-color;
+  transition-duration: var(--dur-fade);
+  transition-timing-function: var(--ease-out);
+}
+
+/* Nothing animates on first paint (§10 rule 7): pages start with data-first-paint on <html>,
+ * and motion.ts removes it two frames after the first paint. */
+html[data-first-paint] *,
+html[data-first-paint] *::before,
+html[data-first-paint] *::after {
+  transition: none !important;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+
+/* §8 focus ring: instant, never animated. */
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* §4 type roles */
+.vc-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.vc-step-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.vc-dialog-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.vc-brand {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.vc-group {
+  margin: 0 0 4px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.vc-sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.vc-meta {
+  font-size: 13px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.vc-caption {
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.vc-serif {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+.vc-rail-line {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 32px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+/* §8 scrollbar: a 4 px thumb (14 px gutter minus 5 px borders), shown only while the pointer is
+ * over the region. Never set scrollbar-width/scrollbar-color: WebView2 then ignores these. */
+.vc-scroll {
+  overflow-y: auto;
+}
+.vc-scroll::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+  background: transparent;
+}
+.vc-scroll::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.vc-scroll::-webkit-scrollbar-track,
+.vc-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.vc-scroll::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  border: 5px solid transparent;
+  border-radius: 7px;
+  background-color: transparent;
+  background-clip: padding-box;
+}
+.vc-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: var(--line-2);
+}
+.vc-scroll::-webkit-scrollbar-thumb:hover {
+  border-width: 4px;
+  background-color: var(--ink-3);
+}
+
+.vc-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

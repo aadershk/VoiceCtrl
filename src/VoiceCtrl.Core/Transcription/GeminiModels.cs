@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text.Json.Serialization;
 
 namespace VoiceCtrl.Core.Transcription;
@@ -132,9 +131,4 @@ internal sealed class GeminiErrorDetail
 
     [JsonPropertyName("status")]
     public string? Status { get; init; }
-}
-
-public sealed class GeminiApiException(HttpStatusCode statusCode, string message) : TranscriptionException(message)
-{
-    public HttpStatusCode StatusCode { get; } = statusCode;
 }

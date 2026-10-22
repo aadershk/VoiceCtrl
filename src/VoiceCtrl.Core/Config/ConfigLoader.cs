@@ -3,13 +3,14 @@ using System.IO;
 namespace VoiceCtrl.Core.Config;
 
 /// <summary>
-/// Hand-rolled .env parser, deliberately not a NuGet dependency (DotNetEnv etc.), matching the
-/// project's general preference for owning small, fully-understood pieces of wire/config format
-/// over pulling in a package for a ~20-line job.
+/// Builds the <see cref="AppConfig"/> the transcription and Overlay code reads, from the settings
+/// store and the Gemini key, and applies the built-in default wherever
+/// <see cref="AdvancedSection"/> has no override. Also keeps v3's hand-rolled .env parser, which v4
+/// only uses to read a v3 install's .env during the one-time <see cref="V3Migration"/>.
 /// </summary>
 public static class ConfigLoader
 {
-    internal const string DefaultModelId = "gemini-3.7-flash";
+    internal const string DefaultModelId = Online.OnlinePresets.GeminiModel;
     private const int DefaultDoubleTapWindowMs = 400;
     private const int DefaultAutoHideDelayMs = 1500;
 
@@ -18,7 +19,6 @@ public static class ConfigLoader
     // out of the box for every default install. "low" is the fastest level this model accepts.
     private const string DefaultThinkingLevel = "low";
     private const string DefaultCleanupLevel = "standard";
-    private const string DefaultTranscriptionMode = "Online";
     internal const string DefaultLocalModelVariant = "parakeet-tdt-0.6b-v2";
 
     // Off by default: MP3 upload cuts the payload by roughly a factor of ten, but nothing about
@@ -31,53 +31,72 @@ public static class ConfigLoader
     // deliberately, which is a habit rather than the common case.
     private const bool DefaultSpokenPunctuation = false;
 
-    public static AppConfig Load(string envFilePath)
+    /// <summary>The config for this run. The key comes from <see cref="SecretsStore"/>, never from
+    /// the settings file.</summary>
+    public static AppConfig Load(UserSettings settings, string geminiApiKey)
     {
-        Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase);
-
-        if (File.Exists(envFilePath))
-        {
-            foreach (string rawLine in File.ReadAllLines(envFilePath))
-            {
-                string line = rawLine.Trim();
-                if (line.Length == 0 || line.StartsWith('#'))
-                {
-                    continue;
-                }
-
-                int separatorIndex = line.IndexOf('=');
-                if (separatorIndex <= 0)
-                {
-                    continue;
-                }
-
-                string key = line[..separatorIndex].Trim();
-                string value = line[(separatorIndex + 1)..].Trim();
-                values[key] = value;
-            }
-        }
-
-        string? explicitMode = NormalizeMode(values.GetValueOrDefault("TRANSCRIPTION_MODE"));
+        AdvancedSection advanced = settings.Advanced;
 
         return new AppConfig
         {
-            GeminiApiKey = values.GetValueOrDefault("GEMINI_API_KEY", string.Empty),
-            GeminiModelId = NonEmptyOrDefault(values.GetValueOrDefault("GEMINI_MODEL_ID"), DefaultModelId),
-            DoubleTapWindowMs = ParseIntOrDefault(values.GetValueOrDefault("DOUBLE_TAP_WINDOW_MS"), DefaultDoubleTapWindowMs),
-            AutoHideDelayMs = ParseIntOrDefault(values.GetValueOrDefault("AUTO_HIDE_DELAY_MS"), DefaultAutoHideDelayMs),
-            ThinkingLevel = NonEmptyOrDefault(values.GetValueOrDefault("THINKING_LEVEL"), DefaultThinkingLevel),
-            StyleNotes = values.GetValueOrDefault("DICTATION_STYLE_NOTES", string.Empty),
-            EnableToneAwareness = ParseBoolOrDefault(values.GetValueOrDefault("ENABLE_TONE_AWARENESS"), true),
-            CleanupLevel = NonEmptyOrDefault(values.GetValueOrDefault("CLEANUP_LEVEL"), DefaultCleanupLevel),
-            PromptStyleApps = ParseList(values.GetValueOrDefault("PROMPT_STYLE_APPS")),
-            ChatStyleApps = ParseList(values.GetValueOrDefault("CHAT_STYLE_APPS")),
-            TranscriptionMode = explicitMode ?? DefaultTranscriptionMode,
-            ExplicitTranscriptionMode = explicitMode,
-            LocalModelVariant = NonEmptyOrDefault(values.GetValueOrDefault("LOCAL_MODEL_VARIANT"), DefaultLocalModelVariant),
-            LocalNumThreads = ResolveLocalNumThreads(values.GetValueOrDefault("LOCAL_NUM_THREADS")),
-            CompressUpload = ParseBoolOrDefault(values.GetValueOrDefault("COMPRESS_UPLOAD"), DefaultCompressUpload),
-            SpokenPunctuation = ParseBoolOrDefault(values.GetValueOrDefault("SPOKEN_PUNCTUATION"), DefaultSpokenPunctuation),
+            GeminiApiKey = geminiApiKey,
+            GeminiModelId = NonEmptyOrDefault(advanced.GeminiModelId, DefaultModelId),
+            DoubleTapWindowMs = advanced.DoubleTapWindowMs ?? DefaultDoubleTapWindowMs,
+            AutoHideDelayMs = advanced.AutoHideDelayMs ?? DefaultAutoHideDelayMs,
+            ThinkingLevel = NonEmptyOrDefault(advanced.ThinkingLevel, DefaultThinkingLevel),
+            StyleNotes = advanced.StyleNotes ?? string.Empty,
+            EnableToneAwareness = advanced.EnableToneAwareness ?? true,
+            CleanupLevel = NonEmptyOrDefault(settings.Transcription.DefaultCleanup, DefaultCleanupLevel),
+            PromptStyleApps = advanced.PromptStyleApps ?? [],
+            ChatStyleApps = advanced.ChatStyleApps ?? [],
+            LocalModelVariant = NonEmptyOrDefault(advanced.LocalModelVariant, DefaultLocalModelVariant),
+            LocalNumThreads = ResolveLocalNumThreads(advanced.LocalNumThreads),
+            CompressUpload = advanced.CompressUpload ?? DefaultCompressUpload,
+            SpokenPunctuation = advanced.SpokenPunctuation ?? DefaultSpokenPunctuation,
         };
+    }
+
+    /// <summary>
+    /// A v3 .env's KEY=value lines, keys matched case-insensitively and both sides trimmed. Blank
+    /// lines, # comments and lines without "=" are skipped. Null when the file doesn't exist or
+    /// can't be read. Hand-rolled rather than a NuGet dependency: it's a ~20-line format.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string>? ReadEnvFile(string envFilePath)
+    {
+        string[] lines;
+        try
+        {
+            if (!File.Exists(envFilePath))
+            {
+                return null;
+            }
+
+            lines = File.ReadAllLines(envFilePath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+
+        Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string rawLine in lines)
+        {
+            string line = rawLine.Trim();
+            if (line.Length == 0 || line.StartsWith('#'))
+            {
+                continue;
+            }
+
+            int separatorIndex = line.IndexOf('=');
+            if (separatorIndex <= 0)
+            {
+                continue;
+            }
+
+            values[line[..separatorIndex].Trim()] = line[(separatorIndex + 1)..].Trim();
+        }
+
+        return values;
     }
 
     /// <summary>
@@ -87,42 +106,14 @@ public static class ConfigLoader
     /// A configured value is clamped rather than rejected: 0 or a negative would make sherpa-onnx
     /// behave unpredictably, and a wildly high one would thrash.
     /// </summary>
-    private static int ResolveLocalNumThreads(string? configured)
+    private static int ResolveLocalNumThreads(int? configured)
     {
         const int minThreads = 2;
         const int maxThreads = 8;
 
-        int resolved = int.TryParse(configured, out int parsed)
-            ? parsed
-            : Environment.ProcessorCount / 2;
-
-        return Math.Clamp(resolved, minThreads, maxThreads);
+        return Math.Clamp(configured ?? Environment.ProcessorCount / 2, minThreads, maxThreads);
     }
 
     private static string NonEmptyOrDefault(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value;
-
-    private static IReadOnlyList<string> ParseList(string? value) =>
-        string.IsNullOrWhiteSpace(value)
-            ? Array.Empty<string>()
-            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-    // Normalizes to exactly "Online" or "Offline" regardless of .env casing, or null for anything
-    // unrecognized (blank, typo) rather than throwing, matching this loader's existing never-crash-
-    // on-bad-config behavior for every other setting. Null vs. a real value also distinguishes "the
-    // user never set this" from "the user explicitly chose Online", which TranscriptionModeStore's
-    // first-run migration seed depends on.
-    private static string? NormalizeMode(string? value) =>
-        value?.Trim().ToUpperInvariant() switch
-        {
-            "OFFLINE" => "Offline",
-            "ONLINE" => "Online",
-            _ => null,
-        };
-
-    private static int ParseIntOrDefault(string? value, int fallback) =>
-        int.TryParse(value, out int parsed) ? parsed : fallback;
-
-    private static bool ParseBoolOrDefault(string? value, bool fallback) =>
-        bool.TryParse(value, out bool parsed) ? parsed : fallback;
 }

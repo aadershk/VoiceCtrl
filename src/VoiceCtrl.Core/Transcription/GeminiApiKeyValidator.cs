@@ -1,28 +1,21 @@
 using System.Net;
 using System.Net.Http;
 using VoiceCtrl.Core.Config;
+using VoiceCtrl.Core.Online;
 
 namespace VoiceCtrl.Core.Transcription;
 
 /// <summary>
 /// Actively checks a Gemini API key against the real API, unlike GeminiTranscriptionClient's
 /// PrewarmConnectionAsync (which is deliberately best-effort and swallows every outcome). Used by
-/// first-run setup to give the user real feedback instead of writing an unverified key to .env.
+/// Setup and Settings, through <see cref="OnlineKeyValidator"/>, to give the user real feedback
+/// instead of saving an unverified key.
 /// </summary>
 public static class GeminiApiKeyValidator
 {
-    public enum Result
-    {
-        Valid,
-        InvalidKey,
-        NetworkError,
-        Timeout,
-        Unknown,
-    }
-
     /// <param name="httpClient">Injected for testing. When null, a short-lived HttpClient is
     /// created and disposed for this one call.</param>
-    public static async Task<Result> ValidateAsync(
+    public static async Task<KeyValidation> ValidateAsync(
         string apiKey,
         HttpClient? httpClient = null,
         string modelId = ConfigLoader.DefaultModelId,
@@ -41,19 +34,19 @@ public static class GeminiApiKeyValidator
 
             return response.StatusCode switch
             {
-                HttpStatusCode.OK => Result.Valid,
+                HttpStatusCode.OK => KeyValidation.Valid,
                 HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
-                    or HttpStatusCode.BadRequest or HttpStatusCode.NotFound => Result.InvalidKey,
-                _ => Result.Unknown,
+                    or HttpStatusCode.BadRequest or HttpStatusCode.NotFound => KeyValidation.InvalidKey,
+                _ => KeyValidation.Unknown,
             };
         }
         catch (HttpRequestException)
         {
-            return Result.NetworkError;
+            return KeyValidation.NetworkError;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return Result.Timeout;
+            return KeyValidation.Timeout;
         }
         finally
         {

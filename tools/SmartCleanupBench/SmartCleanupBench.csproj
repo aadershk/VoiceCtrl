@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Feeds a fixed set of transcripts through Smart cleanup (gate, local model, guard) and reports
+       latency, what the guard let through and how close it is to the hand-written target
+       (ticket 37, experiments L1-L4 of research 33). Not shipped. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>VoiceCtrl.Tools.SmartCleanupBench</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\VoiceCtrl.Core\VoiceCtrl.Core.csproj" />
+  </ItemGroup>
+
+</Project>

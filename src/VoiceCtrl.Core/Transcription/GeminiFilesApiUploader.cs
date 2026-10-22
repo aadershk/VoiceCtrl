@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using VoiceCtrl.Core.Online;
 
 namespace VoiceCtrl.Core.Transcription;
 
@@ -17,9 +18,9 @@ internal sealed class GeminiFilesApiUploader : IDisposable
     private const string UploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files";
 
     private readonly HttpClient _httpClient;
-    private readonly string _apiKey;
+    private readonly Func<string> _apiKey;
 
-    public GeminiFilesApiUploader(string apiKey)
+    public GeminiFilesApiUploader(Func<string> apiKey)
     {
         _apiKey = apiKey;
         _httpClient = new HttpClient
@@ -37,7 +38,7 @@ internal sealed class GeminiFilesApiUploader : IDisposable
     private async Task<string> StartSessionAsync(int numBytes, string mimeType, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, UploadUrl);
-        request.Headers.Add("x-goog-api-key", _apiKey);
+        request.Headers.Add("x-goog-api-key", _apiKey());
         request.Headers.Add("X-Goog-Upload-Protocol", "resumable");
         request.Headers.Add("X-Goog-Upload-Command", "start");
         request.Headers.Add("X-Goog-Upload-Header-Content-Length", numBytes.ToString(CultureInfo.InvariantCulture));
@@ -48,13 +49,13 @@ internal sealed class GeminiFilesApiUploader : IDisposable
         if (!response.IsSuccessStatusCode)
         {
             string errorBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(true);
-            throw new GeminiApiException(response.StatusCode, $"Files API upload session failed: {errorBody}");
+            throw new OnlineServiceException(response.StatusCode, $"Files API upload session failed: {errorBody}", OnlineProvider.Gemini);
         }
 
         if (!response.Headers.TryGetValues("x-goog-upload-url", out IEnumerable<string>? values)
             || values.FirstOrDefault() is not { Length: > 0 } uploadUrl)
         {
-            throw new GeminiApiException(response.StatusCode, "Files API did not return an x-goog-upload-url header.");
+            throw new OnlineServiceException(response.StatusCode, "Files API did not return an x-goog-upload-url header.", OnlineProvider.Gemini);
         }
 
         return uploadUrl;
@@ -72,14 +73,14 @@ internal sealed class GeminiFilesApiUploader : IDisposable
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new GeminiApiException(response.StatusCode, $"Files API byte upload failed: {body}");
+            throw new OnlineServiceException(response.StatusCode, $"Files API byte upload failed: {body}", OnlineProvider.Gemini);
         }
 
         FileUploadResponse? parsed = JsonSerializer.Deserialize<FileUploadResponse>(body);
         string? uri = parsed?.File?.Uri;
         if (string.IsNullOrEmpty(uri))
         {
-            throw new GeminiApiException(response.StatusCode, "Files API response did not include a file URI.");
+            throw new OnlineServiceException(response.StatusCode, "Files API response did not include a file URI.", OnlineProvider.Gemini);
         }
 
         return uri;

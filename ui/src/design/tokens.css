@@ -1,0 +1,162 @@
+/*
+ * Ink & Ember design tokens, copied from .scratch/v4-overhaul/DESIGN.md §2–5 and §10 as written.
+ * Components use these custom properties only: no raw colours, durations or easings elsewhere.
+ *
+ * Theme is set with data-theme="light" | "dark" on <html> (the host sets it before first paint)
+ * or on any container (the gallery shows both side by side). Motion tokens live on :root only,
+ * so the reduced-motion overrides at the bottom reach every Theme container.
+ */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* §2 colour */
+  --bg: #F3EDE4;
+  --panel: #FFFCF7;
+  --tint: #F8F1E7;
+  --line: #EBE2D6;
+  --line-2: #DCCFBF;
+  --ink: #221D18;
+  --ink-2: #5C5249;
+  --ink-3: #6F655B;
+  --hover: rgba(34, 29, 24, .05);
+  --btn: #221D18;
+  --btn-ink: #FFFCF7;
+  --tile: #16171C;
+  --coral: #F0472B;
+  --warn-bg: #FDF1DC;
+  --warn-line: transparent;
+  --warn-ink: #7A4B00;
+  --warn-icon: #7A4B00;
+  --danger: #B42318;
+  --danger-ink: #FFFCF7;
+  --scrim: rgba(34, 29, 24, .22);
+  --ov-bg: rgba(255, 252, 247, .96);
+  --ov-line: #E6DCCF;
+  /* Windows' own caption-button close hover, identical in both Themes (§2). */
+  --close-hover: #C42B1C;
+  --close-hover-ink: #FFFFFF;
+
+  /* §3 elevation */
+  --shadow: 0 1px 2px rgba(74, 52, 30, .06), 0 8px 24px rgba(74, 52, 30, .07);
+  --nav-shadow: 0 1px 2px rgba(74, 52, 30, .08), 0 2px 8px rgba(74, 52, 30, .06);
+  --pop-shadow: 0 12px 32px rgba(74, 52, 30, .18), 0 2px 6px rgba(74, 52, 30, .1);
+  --ov-shadow: 0 12px 32px rgba(74, 52, 30, .24), 0 2px 6px rgba(74, 52, 30, .12);
+  /* The switch knob's own small shadow, from the approved boards. */
+  --knob-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #121317;
+  --panel: #17181D;
+  --tint: #1D1E24;
+  --line: #282931;
+  --line-2: #34353F;
+  --ink: #EDEEF2;
+  --ink-2: #A9ABB6;
+  --ink-3: #8E909B;
+  --hover: rgba(237, 238, 242, .05);
+  --btn: #F0472B;
+  --btn-ink: #16171C;
+  --tile: #EDEEF2;
+  --coral: #F0472B;
+  --warn-bg: #0F1013;
+  --warn-line: #282931;
+  --warn-ink: #EDEEF2;
+  --warn-icon: #EDEEF2;
+  --danger: #F97066;
+  --danger-ink: #16171C;
+  --scrim: rgba(0, 0, 0, .5);
+  --ov-bg: rgba(22, 23, 28, .94);
+  --ov-line: #34353F;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .22);
+  --nav-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 2px 8px rgba(0, 0, 0, .2);
+  --pop-shadow: 0 12px 32px rgba(0, 0, 0, .5), 0 2px 6px rgba(0, 0, 0, .3);
+  --ov-shadow: 0 12px 32px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
+}
+
+:root {
+  /* §4 type: families only; sizes live with the roles in base.css. */
+  --font-display: "Sora", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-text: "Public Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Newsreader", "Georgia", serif;
+
+  /* §5 shape */
+  --r-key: 7px;
+  --r-sm: 8px;
+  --r-menu-item: 9px;
+  --r-control: 10px;
+  --r-overlay: 11px;
+  --r-row: 12px;
+  --r-menu: 14px;
+  --r-card: 16px;
+  /* The Clear all dialog's corner in the approved Hub board (not listed in §5). */
+  --r-dialog: 18px;
+  --r-panel: 20px;
+
+  /* §10 motion (Glide) */
+  --dur-hover: 120ms;
+  --dur-fade: 220ms;
+  --dur-enter: 280ms;
+  --dur-exit: 180ms;
+  --dur-shape: 420ms;
+  --dur-nudge: 520ms;
+  --move: 10px;
+  --lift: 5px;
+  --scale-from: .94;
+  --scale-to: .97;
+  --stagger: 28ms;
+  --press: .96;
+  --press-opacity: 1;
+  --loop-state: running;
+
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
+  --ease-nudge: cubic-bezier(.34, 1.56, .64, 1);
+  /* critically damped spring, w = 9.2, generated with toLinear(spring(9.2), 32) */
+  --ease-spring: linear(0, 0.0342 3.1%, 0.1137 6.3%, 0.2138 9.4%, 0.3192 12.5%, 0.421 15.6%, 0.5145 18.8%, 0.5974 21.9%, 0.6691 25%, 0.7302 28.1%, 0.7814 31.3%, 0.8238 34.4%, 0.8587 37.5%, 0.8872 40.6%, 0.9102 43.8%, 0.9288 46.9%, 0.9437 50%, 0.9556 53.1%, 0.9651 56.3%, 0.9726 59.4%, 0.9785 62.5%, 0.9832 65.6%, 0.9869 68.8%, 0.9898 71.9%, 0.992 75%, 0.9938 78.1%, 0.9952 81.3%, 0.9963 84.4%, 0.9971 87.5%, 0.9978 90.6%, 0.9983 93.8%, 0.9987 96.9%, 1 100%);
+}
+
+/*
+ * Reduced motion (§10): Windows "Animation effects" off reaches Chromium as the media query;
+ * the host also mirrors it into data-reduced-motion. No movement or scaling, enters and exits
+ * become 120/100 ms fades, colour fades cap at 120 ms, press dims to 85 %, loops stop.
+ * The two blocks are identical on purpose: CSS can't OR a media query with a selector.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fade: 120ms;
+    --dur-enter: 120ms;
+    --dur-exit: 100ms;
+    --dur-shape: 0ms;
+    --dur-nudge: 120ms;
+    --move: 0px;
+    --lift: 0px;
+    --scale-from: 1;
+    --scale-to: 1;
+    --stagger: 0ms;
+    --press: 1;
+    --press-opacity: .85;
+    --loop-state: paused;
+  }
+}
+
+:root[data-reduced-motion="true"] {
+  --dur-fade: 120ms;
+  --dur-enter: 120ms;
+  --dur-exit: 100ms;
+  --dur-shape: 0ms;
+  --dur-nudge: 120ms;
+  --move: 0px;
+  --lift: 0px;
+  --scale-from: 1;
+  --scale-to: 1;
+  --stagger: 0ms;
+  --press: 1;
+  --press-opacity: .85;
+  --loop-state: paused;
+}

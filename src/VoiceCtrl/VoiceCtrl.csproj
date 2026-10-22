@@ -1,54 +1,88 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-  <ItemGroup>
-    <ProjectReference Include="..\VoiceCtrl.Core\VoiceCtrl.Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- Lives at repo root (gitignored, user-edited) but must sit next to the exe at runtime,
-         AppContext.BaseDirectory is how config resolves the file, in both `dotnet run` and a
-         published build, so dev and production behave identically. -->
-    <None Include="..\..\.env" Condition="Exists('..\..\.env')" Link=".env" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\tray-icon.png" CopyToOutputDirectory="PreserveNewest" />
-    <!-- IBM Plex Sans/Mono (SIL OFL 1.1, see Assets\Fonts\OFL.txt), embedded as WPF font
-         resources for the Hub's Quiet Ledger type system, per ticket 02's answer. -->
-    <Resource Include="Assets\Fonts\*.ttf" />
-    <None Include="Assets\Fonts\OFL.txt" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="2.0.1" />
-  </ItemGroup>
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF>
+    <!-- WinForms, not WPF (spec §2): the message loop, NotifyIcon, and Forms whose CreateParams
+         and WndProc are easy to override. Every pixel the user sees is a WebView2 page. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <!-- Drives the Hub's own "vX.Y.Z" footer (HubWindow reads its own assembly's version). Bump
-         this alongside each release tag (see .github/workflows/release.yml) — nothing does that
-         automatically, so it was silently stuck at the SDK's default 1.0.0.0 until now. -->
-    <Version>3.0.0</Version>
-    <!-- Embeds the icon into the exe's own resources. This is what Explorer, Alt-Tab, the
-         taskbar, and the Start Menu shortcut all pick up, so the app looks like an app instead
-         of showing the generic .NET exe icon. Generated from Assets\tray-icon.png (the same
-         source as the tray icon) at 16/32/48/64/256px. -->
+    <!-- The version pages show (app.ready) and the single-instance build check. Bump it with
+         each release tag; nothing does that automatically. -->
+    <Version>4.0.0</Version>
+    <!-- Embedded in the exe: Explorer, Alt+Tab, the taskbar and the Start Menu shortcut use it. -->
     <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
   </PropertyGroup>
 
-  <!-- `dotnet publish` output: one self-contained exe, no separate .NET runtime install required.
-       RuntimeIdentifier/SelfContained are deliberately NOT set here, because that would make every
-       `dotnet build`/`dotnet run` self-contained and RID-specific too, slowing the dev loop for
-       no benefit. Pass them on the publish command instead:
-         dotnet publish -c Release -r win-x64 -p:SelfContained=true
-       PublishTrimmed is off (not merely defaulted) because AppConfig's env-file parsing and the
-       sherpa-onnx interop don't survive trimming safely without extra source-gen work. -->
+  <!-- `dotnet publish -c Release -r win-x64 -p:SelfContained=true`: one self-contained exe plus
+       the ui folder. RuntimeIdentifier/SelfContained are passed on the command line so ordinary
+       builds stay fast. Trimming stays off: sherpa-onnx interop isn't trim-safe. -->
   <PropertyGroup>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VoiceCtrl.Core\VoiceCtrl.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Two tray icons with the same silhouette: tray-icon.png's dark container for a light
+         taskbar, the retinted one for a dark taskbar (TrayIcon picks). -->
+    <Content Include="Assets\tray-icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\tray-icon-dark-taskbar.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Warm Sound Cues, rendered once by ui/scripts/render-sound-cues.mjs (WavSoundCues). -->
+    <EmbeddedResource Include="Assets\Sounds\*.wav" LogicalName="VoiceCtrl.Sounds.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- ui/ → <output>\ui (spec §6). `-p:SkipUi=true` skips it for Core-only work; the pages then
+       come from an earlier build, or from the Vite dev server via VOICECTRL_UI_DEV_URL (Debug). -->
+  <PropertyGroup>
+    <UiRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\ui'))</UiRoot>
+    <UiDist>$(UiRoot)\dist</UiDist>
+    <UiStamp>$(UiDist)\.build-stamp</UiStamp>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(SkipUi)' != 'true'">
+    <UiSource Include="$(UiRoot)\src\**\*;$(UiRoot)\*.html;$(UiRoot)\package.json;$(UiRoot)\package-lock.json;$(UiRoot)\vite.config.ts;$(UiRoot)\tsconfig.json" Exclude="$(UiRoot)\src\**\*.test.*" />
+  </ItemGroup>
+
+  <Target Name="InstallUiPackages" Condition="'$(SkipUi)' != 'true' And !Exists('$(UiRoot)\node_modules')" BeforeTargets="BuildUi">
+    <Exec Command="npm ci" WorkingDirectory="$(UiRoot)" />
+  </Target>
+
+  <!-- Incremental: runs only when a ui source is newer than the last build's stamp. -->
+  <Target Name="BuildUi" Condition="'$(SkipUi)' != 'true'" BeforeTargets="BeforeBuild" Inputs="@(UiSource)" Outputs="$(UiStamp)">
+    <Exec Command="npm run build" WorkingDirectory="$(UiRoot)" />
+    <Touch Files="$(UiStamp)" AlwaysCreate="true" />
+  </Target>
+
+  <Target Name="CopyUi" Condition="'$(SkipUi)' != 'true'" AfterTargets="Build">
+    <ItemGroup>
+      <UiOutput Include="$(UiDist)\**\*" Exclude="$(UiStamp)" />
+    </ItemGroup>
+    <RemoveDir Directories="$(OutDir)ui" />
+    <Copy SourceFiles="@(UiOutput)" DestinationFiles="@(UiOutput->'$(OutDir)ui\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Publish: the same ui folder next to the single-file exe (never bundled into it). -->
+  <Target Name="PublishUi" Condition="'$(SkipUi)' != 'true'" AfterTargets="Publish">
+    <ItemGroup>
+      <UiPublish Include="$(UiDist)\**\*" Exclude="$(UiStamp)" />
+    </ItemGroup>
+    <RemoveDir Directories="$(PublishDir)ui" />
+    <Copy SourceFiles="@(UiPublish)" DestinationFiles="@(UiPublish->'$(PublishDir)ui\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
 
 </Project>

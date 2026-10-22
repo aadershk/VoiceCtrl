@@ -23,7 +23,8 @@ public sealed class SnippetTable
         # One per line, as: trigger = expansion
         # Say the trigger, get the expansion. Matching ignores case and only fires on whole
         # words, so a trigger never fires inside a longer word.
-        # Use \n in the expansion for a line break. Lines starting with # are ignored.
+        # Use \n in the expansion for a line break, and \\ for a backslash.
+        # Lines starting with # are ignored.
         #
         # Examples, delete these:
         # my work email = firstname.lastname@example.com
@@ -74,12 +75,41 @@ public sealed class SnippetTable
     }
 
     /// <summary>Renders <paramref name="header"/> (from <see cref="ExtractHeader"/>) followed by one
-    /// "trigger = expansion" line per snippet, re-escaping a real line break back to the literal
-    /// "\n" that <see cref="Parse"/> reads — the inverse of reading a file's header then
+    /// "trigger = expansion" line per snippet, escaping a backslash as "\\" and a real line break
+    /// as the "\n" that <see cref="Parse"/> reads: the inverse of reading a file's header then
     /// <see cref="Parse"/>-ing its snippets.</summary>
     public static string Format(string header, IReadOnlyList<KeyValuePair<string, string>> snippets) =>
-        header + string.Join('\n', snippets.Select(snippet => $"{snippet.Key} = {snippet.Value.Replace("\n", "\\n")}"))
+        header + string.Join('\n', snippets.Select(snippet => $"{snippet.Key} = {Escape(snippet.Value)}"))
                + (snippets.Count > 0 ? "\n" : string.Empty);
+
+    private static string Escape(string expansion) => expansion.Replace("\\", "\\\\").Replace("\n", "\\n");
+
+    /// <summary>"\n" is a line break and "\\" a backslash. Any other backslash is kept as typed, so
+    /// a hand-written path such as C:\Users reads as it looks.</summary>
+    private static string Unescape(string expansion)
+    {
+        if (!expansion.Contains('\\'))
+        {
+            return expansion;
+        }
+
+        var builder = new System.Text.StringBuilder(expansion.Length);
+        for (int i = 0; i < expansion.Length; i++)
+        {
+            char next = i + 1 < expansion.Length ? expansion[i + 1] : '\0';
+            if (expansion[i] == '\\' && next is 'n' or '\\')
+            {
+                builder.Append(next == 'n' ? '\n' : '\\');
+                i++;
+            }
+            else
+            {
+                builder.Append(expansion[i]);
+            }
+        }
+
+        return builder.ToString();
+    }
 
     public static SnippetTable Parse(IEnumerable<string> lines)
     {
@@ -101,7 +131,7 @@ public sealed class SnippetTable
             }
 
             string trigger = line[..separatorIndex].Trim();
-            string expansion = line[(separatorIndex + 1)..].Trim().Replace("\\n", "\n");
+            string expansion = Unescape(line[(separatorIndex + 1)..].Trim());
 
             // An empty expansion is allowed: deleting a spoken filler phrase outright is a
             // legitimate use. An empty trigger is not, since it would match everywhere.

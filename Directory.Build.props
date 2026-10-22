@@ -1,0 +1,10 @@
+<Project>
+
+  <!-- CI quality gate (VED-29, spec §10): every project builds warning-clean with the latest
+       .NET analyzers. The WebView2 host joined when it replaced the WPF host (VED-33). -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+  </PropertyGroup>
+
+</Project>

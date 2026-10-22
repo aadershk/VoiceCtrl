@@ -8,7 +8,7 @@ public class DictionaryCorrectorTests
     [Fact]
     public void NoTerms_LeavesTextAlone()
     {
-        Assert.Equal("nothing to do here", DictionaryCorrector.Apply("nothing to do here", []));
+        Assert.Equal("nothing to do here", DictionaryCorrector.Apply("nothing to do here", Array.Empty<string>()));
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class DictionaryCorrectorTests
     // long name and a refusal on a short one.
     [Theory]
     [InlineData("Grafana", "we use grafna", "we use Grafana")]
-    [InlineData("Grafana", "we use grfna", "we use grfna")]
+    [InlineData("Grafana", "we use grafting", "we use grafting")]
     [InlineData("Kubernetes", "run it on kubrnets", "run it on Kubernetes")]
     public void EditBudgetScalesWithTermLength(string term, string text, string expected)
     {
@@ -125,5 +125,64 @@ public class DictionaryCorrectorTests
     public void TextWithoutWords_IsReturnedUnchanged()
     {
         Assert.Equal("... !!", DictionaryCorrector.Apply("... !!", ["Schiphol"]));
+    }
+
+    [Fact]
+    public void AlsoHeardAs_BecomesTheWord()
+    {
+        DictionaryEntry[] dictionary = [new("Bluepeak", ["blue peak"])];
+
+        Assert.Equal("I work at Bluepeak now", DictionaryCorrector.Apply("I work at Blue Peak now", dictionary));
+    }
+
+    [Fact]
+    public void AlsoHeardAs_MatchesWholeWordsOnly()
+    {
+        DictionaryEntry[] dictionary = [new("Bluepeak", ["blue peak"])];
+
+        Assert.Equal("true blue peaks", DictionaryCorrector.Apply("true blue peaks", dictionary));
+    }
+
+    [Fact]
+    public void AlsoHeardAs_LongestPhraseWins()
+    {
+        DictionaryEntry[] dictionary = [new("Kubernetes", ["cube"]), new("Kubectl", ["cube control"])];
+
+        Assert.Equal("run Kubectl on Kubernetes", DictionaryCorrector.Apply("run cube control on cube", dictionary));
+    }
+
+    [Fact]
+    public void Entries_StillGetTheNearMissCorrection()
+    {
+        Assert.Equal("fly from Schiphol", DictionaryCorrector.Apply("fly from schiphol", [new DictionaryEntry("Schiphol", [])]));
+    }
+
+    // The recogniser splits and merges names it does not know; the corrector looks one word either
+    // side of the term's own length.
+    [Theory]
+    [InlineData("EconML", "we fit econ ML on it", "we fit EconML on it")]
+    [InlineData("XGBoost", "train an XG Boost model", "train an XGBoost model")]
+    [InlineData("LightGBM", "then light GBM again", "then LightGBM again")]
+    public void RepairsATermTheRecogniserSplit(string term, string text, string expected)
+    {
+        Assert.Equal(expected, DictionaryCorrector.Apply(text, [term]));
+    }
+
+    [Fact]
+    public void RepairsATermTheRecogniserRanTogether()
+    {
+        Assert.Equal("plot it in Scikit Learn", DictionaryCorrector.Apply("plot it in scikitlearn", ["Scikit Learn"]));
+    }
+
+    [Fact]
+    public void ASplitRepair_NeverSwallowsAnOrdinaryNeighbour()
+    {
+        Assert.Equal("run Kubectl on Kubernetes", DictionaryCorrector.Apply("run Kubectl on kuber netes", ["Kubernetes", "Kubectl"]));
+    }
+
+    [Fact]
+    public void SoundAlikeWithADifferentFirstSound_IsLeftAlone()
+    {
+        Assert.Equal("a pelican", DictionaryCorrector.Apply("a pelican", ["Pelagic"]));
     }
 }
