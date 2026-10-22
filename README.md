@@ -1,6 +1,8 @@
 # VoiceCtrl
 
-<a href="docs/media/VoiceCtrl-launch.mp4"><img alt="Watch the 30-second VoiceCtrl video" src="docs/images/video-poster.jpg" width="820"></a>
+<a href="docs/media/VoiceCtrl-launch.mp4"><img alt="VoiceCtrl in 30 seconds: dictating a WhatsApp message, writing an email with the Rewrite key, working offline, and turning plans into a checklist" src="docs/images/video-preview.gif" width="820"></a>
+
+<sub>▶ [Watch it with sound](docs/media/VoiceCtrl-launch.mp4) (30 s, 5 MB)</sub>
 
 **Talk instead of type, in any app on Windows.** Hold two keys, say it, let go: clean, punctuated text appears where your cursor is. Hold two other keys to rewrite what you've written, or to have an email written for you. It works online or fully offline, and it's free.
 
